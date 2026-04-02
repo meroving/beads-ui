@@ -1,3 +1,6 @@
 # Ephemeral session artifacts
 staging/
 worktrees/
+
+# Machine-local settings
+settings.local.json
