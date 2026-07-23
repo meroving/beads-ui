@@ -197,6 +197,45 @@ describe('list adapters for subscription types', () => {
     }
   });
 
+  test('fetchListForSubscription retries a transient bd failure then succeeds', async () => {
+    const mock = /** @type {import('vitest').Mock} */ (runBdJson);
+    // First attempt: transient failure with empty stderr (the observed race).
+    // Second attempt: success.
+    mock.mockResolvedValueOnce({ code: 1 }).mockResolvedValueOnce({
+      code: 0,
+      stdoutJson: [
+        { id: 'A-1', updated_at: '2024-01-01T00:00:00.000Z', closed_at: null }
+      ]
+    });
+
+    const res = await fetchListForSubscription({ type: 'blocked-issues' });
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.items).toHaveLength(1);
+      expect(res.items[0]).toMatchObject({ id: 'A-1' });
+    }
+    expect(mock).toHaveBeenCalledTimes(2);
+  });
+
+  test('fetchListForSubscription surfaces error after exhausting retries', async () => {
+    const mock = /** @type {import('vitest').Mock} */ (runBdJson);
+    // Every attempt fails with an empty stderr, like the observed transient.
+    mock.mockResolvedValue({ code: 1 });
+
+    const res = await fetchListForSubscription({ type: 'blocked-issues' });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error.code).toBe('bd_error');
+      // Empty stderr falls back to the generic message.
+      expect(res.error.message).toBe('bd failed');
+      expect(res.error.details && res.error.details.exit_code).toBe(1);
+    }
+    // Default is 2 retries, so 3 attempts total.
+    expect(mock).toHaveBeenCalledTimes(3);
+  });
+
   test('fetchListForSubscription returns error for unknown type', async () => {
     const res = await fetchListForSubscription(
       /** @type {any} */ ({ type: 'unknown' })

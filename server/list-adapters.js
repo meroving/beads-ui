@@ -4,6 +4,91 @@ import { debug } from './logging.js';
 const log = debug('list-adapters');
 
 /**
+ * Extra attempts (after the first) for read-only list fetches. A transient
+ * `bd` failure - for example an embedded-Dolt error when a read overlaps a
+ * concurrent `bd` writer, or a truncated read that fails JSON parsing - is
+ * safe to retry because list fetches are idempotent. Overridable with the
+ * `BDUI_BD_LIST_RETRIES` environment variable (a non-negative integer).
+ *
+ * @type {number}
+ */
+const DEFAULT_LIST_FETCH_RETRIES = 2;
+
+/**
+ * Backoff in milliseconds before retry N (0-indexed). If more retries are
+ * configured than this table has entries, the last value is reused.
+ *
+ * @type {number[]}
+ */
+const LIST_FETCH_BACKOFF_MS = [100, 250];
+
+/**
+ * Resolve the configured number of list-fetch retries from the environment,
+ * falling back to the default when unset or invalid.
+ *
+ * @returns {number}
+ */
+function resolveListFetchRetries() {
+  const raw = process.env.BDUI_BD_LIST_RETRIES;
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_LIST_FETCH_RETRIES;
+  }
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isInteger(n) || n < 0) {
+    return DEFAULT_LIST_FETCH_RETRIES;
+  }
+  return n;
+}
+
+/**
+ * Resolve after `ms` milliseconds.
+ *
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Run a read-only `bd --json` list command with bounded retries so a momentary
+ * failure self-heals instead of surfacing a permanent board error. A genuinely
+ * persistent failure is returned unchanged after the final attempt, so the
+ * caller's existing error handling still applies.
+ *
+ * @param {string[]} args
+ * @param {{ cwd?: string }} options
+ * @returns {Promise<{ code: number, stdoutJson?: unknown, stderr?: string }>}
+ */
+async function runBdJsonWithRetry(args, options) {
+  const retries = resolveListFetchRetries();
+  /** @type {{ code: number, stdoutJson?: unknown, stderr?: string }} */
+  let res = { code: -1, stderr: 'bd not run' };
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    res = await runBdJson(args, { cwd: options.cwd });
+    const failed = !res || res.code !== 0 || !('stdoutJson' in res);
+    if (!failed || attempt === retries) {
+      return res;
+    }
+    const backoff =
+      LIST_FETCH_BACKOFF_MS[
+        Math.min(attempt, LIST_FETCH_BACKOFF_MS.length - 1)
+      ];
+    log(
+      'bd list attempt %d/%d failed (code=%s); retrying in %dms',
+      attempt + 1,
+      retries + 1,
+      res?.code,
+      backoff
+    );
+    await delay(backoff);
+  }
+  return res;
+}
+
+/**
  * Build concrete `bd` CLI args for a subscription type + params.
  * Always includes `--json` for parseable output.
  *
@@ -141,7 +226,7 @@ export async function fetchListForSubscription(spec, options = {}) {
   }
 
   try {
-    const res = await runBdJson(args, { cwd: options.cwd });
+    const res = await runBdJsonWithRetry(args, { cwd: options.cwd });
     if (!res || res.code !== 0 || !('stdoutJson' in res)) {
       log(
         'bd failed for %o (args=%o) code=%s stderr=%s',
