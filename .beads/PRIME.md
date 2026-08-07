@@ -40,6 +40,31 @@ Every issue has four structured fields. **Use all relevant fields, not just `--d
 | **Notes**       | `--notes`       | Progress, decisions, gotchas          | As you work        |
 | **Acceptance**  | `--acceptance`  | Pass/fail criteria, test commands     | **ALL leaf tasks** |
 
+### Field Size Budgets (hard caps)
+
+Verbose beads break cross-machine sync. Every field rewrite copies the FULL old and new
+values into the `events` audit table and creates a Dolt commit, so a 20KB notes field costs
+~40KB of permanent history PER APPEND, in every clone, forever. In Aug 2026 this made
+`bd dolt pull` take 30+ minutes and silently broke sync between machines (silo_atlassian:
+~800 commits and 17MB of event payload in two days).
+
+| Field                                                          | Cap                             |
+| -------------------------------------------------------------- | ------------------------------- |
+| Any single field (`--description`, `--design`, `--acceptance`) | 5,000 chars                     |
+| `--notes` total                                                | 5,000 chars                     |
+| One `--append-notes` entry                                     | 1,000 chars                     |
+| Close `--reason`                                               | 2,000 chars                     |
+| Whole issue (all four fields combined)                         | 10,000 target, 15,000 hard cap  |
+
+- Notes are POINTERS, not a lab notebook: reference commits, file paths, PRD sections, and
+  other beads. NEVER paste diffs, test output, file contents, stack traces, or transcripts
+  into any bead field. Long-form evidence goes in a repo doc (or the PRD), linked from the
+  bead.
+- If an update would blow the budget, write the detail to a durable doc and append a
+  one-line pointer instead.
+- The session-sync hook flags oversized beads at session start (`BEAD BLOAT`). Treat a flag
+  on a bead you own as a defect to fix, not advice.
+
 ### Field Usage by Hierarchy Level
 
 | Level                   | Description                     | Design               | Notes               | Acceptance       |
@@ -163,7 +188,7 @@ EOF
 ### Rich Close Reasons
 
 **Always close with `--reason` containing an OUTCOME.** Close reasons survive compaction
-and provide context for future sessions.
+and provide context for future sessions. Rich means informative, not long: keep the whole reason under 2,000 chars (see Field Size Budgets) - summarize verification, link details.
 
 ```bash
 bd close <id> --reason="$(cat <<'EOF'
