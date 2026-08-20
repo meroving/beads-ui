@@ -40,7 +40,7 @@ Every issue has four structured fields. **Use all relevant fields, not just `--d
 | **Notes**       | `--notes`       | Progress, decisions, gotchas          | As you work        |
 | **Acceptance**  | `--acceptance`  | Pass/fail criteria, test commands     | **ALL leaf tasks** |
 
-### Field Size Budgets (hard caps)
+### Field Size Budgets (authoring guidance)
 
 Verbose beads break cross-machine sync. Every field rewrite copies the FULL old and new
 values into the `events` audit table and creates a Dolt commit, so a 20KB notes field costs
@@ -48,13 +48,21 @@ values into the `events` audit table and creates a Dolt commit, so a 20KB notes 
 `bd dolt pull` take 30+ minutes and silently broke sync between machines (silo_atlassian:
 ~800 commits and 17MB of event payload in two days).
 
-| Field                                                          | Cap                             |
-| -------------------------------------------------------------- | ------------------------------- |
-| Any single field (`--description`, `--design`, `--acceptance`) | 5,000 chars                     |
-| `--notes` total                                                | 5,000 chars                     |
-| One `--append-notes` entry                                     | 1,000 chars                     |
-| Close `--reason`                                               | 2,000 chars                     |
-| Whole issue (all four fields combined)                         | 10,000 target, 15,000 hard cap  |
+The figures below budget what you are about to WRITE. They are not limits the store
+enforces. The only enforced ceiling is the column type: all four content fields are Dolt
+`text`, so **65,535 bytes each**. (`information_schema` also reports a 16,383-character
+maximum, but that is only 65,535/4, the utf8mb4 worst case, and nothing enforces it:
+`silo_atlassian-i61.13` stores a 29,222-character notes field.) No write under the column
+ceiling is rejected, so the reason to stay small is history amplification, which is why the
+budget lives here and not in a schema.
+
+| Field                                                          | Budget                                  |
+| -------------------------------------------------------------- | --------------------------------------- |
+| Any single field (`--description`, `--design`, `--acceptance`) | 5,000 chars                             |
+| `--notes` total                                                | 5,000 chars                             |
+| One `--append-notes` entry                                     | 1,000 chars                             |
+| Close `--reason`                                               | 2,000 chars                             |
+| Whole issue (all four fields combined)                         | 10,000 target, 15,000 where a hook flags |
 
 - Notes are POINTERS, not a lab notebook: reference commits, file paths, PRD sections, and
   other beads. NEVER paste diffs, test output, file contents, stack traces, or transcripts
@@ -62,8 +70,15 @@ values into the `events` audit table and creates a Dolt commit, so a 20KB notes 
   bead.
 - If an update would blow the budget, write the detail to a durable doc and append a
   one-line pointer instead.
-- The session-sync hook flags oversized beads at session start (`BEAD BLOAT`). Treat a flag
-  on a bead you own as a defect to fix, not advice.
+- **The budget binds your NEXT write, never a row already written.** The session-sync hook
+  flags non-closed issues over 15,000 at session start (`BEAD BLOAT`), counting BYTES: it
+  sums SQL `length()`, which is byte length, not `char_length()`. Read a flag as "spend
+  carefully from here", and **do not trim an already-oversized bead to clear it** - a trim
+  is itself a field rewrite, so it copies the full old and new values into `events` and
+  costs MORE permanent history than leaving the row alone.
+- A bead that is already pure pointers and still over budget is correctly sized. Some work
+  genuinely needs length (a per-site edit list, a decision record and its evidence); the
+  defect is padding and pasted output, not size as such.
 
 ### Field Usage by Hierarchy Level
 
