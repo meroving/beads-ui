@@ -8,21 +8,23 @@
 **CRITICAL**: Before saying "done" or "complete", you MUST run this checklist:
 
 ```text
-[ ] 1. git status              (check what changed)
-[ ] 2. git add <files>         (stage code changes + .beads/issues.jsonl)
-[ ] 3. git commit -m "..."     (commit code)
-[ ] 4. git push                (push to remote)
+[ ] bd dolt pull && bd dolt push          (if Dolt remote configured; PULL FIRST so the push is never rejected non-fast-forward)
 ```
 
-<!-- REMOTE: Push-enabled -- public GitHub (github.com) -->
-**Note:** Git remote configured. Always push at session end. Work is not done until pushed.
+<!-- BEGIN PROJECT-LOCAL -->
+<!-- Generated block. Do not edit here. Edit .beads/PRIME.local.md in this repo,
+     then run ~/.claude/bin/render-prime.py --write. -->
+**Git remote:** `https://github.com/AstroMined/beads-ui.git` (origin).
+**Dolt remote:** `origin` -> `git+https://github.com/AstroMined/beads-ui.git`, verified configured. Bead history is stored as
+the `refs/dolt/data` ref in that repository, out-of-band from the code branches.
+<!-- END PROJECT-LOCAL -->
 **Note:** Dolt auto-commit is enabled. All `bd` writes create Dolt commits automatically.
 
 ## Core Rules
 
-- Track strategic work in beads (multi-session, dependencies, discovered work)
-- Any committed code or documentation change MUST have a bead - no exceptions
-- When in doubt, prefer bd - persistence you don't need beats lost context
+- Track substantive work in beads (multi-session, multi-file code changes, dependencies, discovered work)
+- Trivial and non-code changes do NOT need a bead: Beads CRUD itself, single-doc/PRD edits, planning/roadmap notes, formatting, config touch-ups
+- When in doubt on substantive work, prefer bd - persistence you don't need beats lost context
 - Session management: check `bd ready` for available work
 
 ---
@@ -56,12 +58,12 @@ maximum, but that is only 65,535/4, the utf8mb4 worst case, and nothing enforces
 ceiling is rejected, so the reason to stay small is history amplification, which is why the
 budget lives here and not in a schema.
 
-| Field                                                          | Budget                                  |
-| -------------------------------------------------------------- | --------------------------------------- |
-| Any single field (`--description`, `--design`, `--acceptance`) | 5,000 chars                             |
-| `--notes` total                                                | 5,000 chars                             |
-| One `--append-notes` entry                                     | 1,000 chars                             |
-| Close `--reason`                                               | 2,000 chars                             |
+| Field                                                          | Budget                                   |
+| -------------------------------------------------------------- | ---------------------------------------- |
+| Any single field (`--description`, `--design`, `--acceptance`) | 5,000 chars                              |
+| `--notes` total                                                | 5,000 chars                              |
+| One `--append-notes` entry                                     | 1,000 chars                              |
+| Close `--reason`                                               | 2,000 chars                              |
 | Whole issue (all four fields combined)                         | 10,000 target, 15,000 where a hook flags |
 
 - Notes are POINTERS, not a lab notebook: reference commits, file paths, PRD sections, and
@@ -83,7 +85,7 @@ budget lives here and not in a schema.
 ### Field Usage by Hierarchy Level
 
 | Level                   | Description                     | Design               | Notes               | Acceptance       |
-| ----------------------- | ------------------------------- | -------------------- | -------------------- | ---------------- |
+| ----------------------- | ------------------------------- | -------------------- | ------------------- | ---------------- |
 | **Feature**             | PRD scope, epic overview        | -                    | Pipeline metadata   | -                |
 | **Epic**                | Phase scope, overview           | -                    | -                   | -                |
 | **Task/Session**        | Session scope, overview         | Ordering rationale   | Dependencies        | -                |
@@ -203,7 +205,8 @@ EOF
 ### Rich Close Reasons
 
 **Always close with `--reason` containing an OUTCOME.** Close reasons survive compaction
-and provide context for future sessions. Rich means informative, not long: keep the whole reason under 2,000 chars (see Field Size Budgets) - summarize verification, link details.
+and provide context for future sessions. Rich means informative, not long: keep the whole
+reason under 2,000 chars (see Field Size Budgets) - summarize verification, link details.
 
 ```bash
 bd close <id> --reason="$(cat <<'EOF'
@@ -291,7 +294,8 @@ or `bd list` output rather than abbreviating.
 
 Embedded Dolt with auto-commit enabled. Every `bd` write creates a Dolt commit
 automatically. Data is durable immediately. For projects with a Dolt remote,
-run `bd dolt push` to sync changes to other machines.
+run `bd dolt pull` then `bd dolt push` to sync changes to other machines (pull
+first so the push is never rejected non-fast-forward).
 
 ### Project Health
 
@@ -394,7 +398,7 @@ their parent is incomplete or blocked.
 - Just blocking the parent Session B is NOT sufficient
 - Children of a blocked parent are still ready to work on
 
-```
+```text
 WRONG:  Session A blocks Session B
         └── But B.1, B.2, B.3 are still READY!
 
@@ -457,7 +461,7 @@ When working within the implementation pipeline, the `assignee` field acts as a
 dispatch queue. Each skill checks for work assigned to it and routes completed
 work to the next skill:
 
-```
+```text
 prepare-feature -> sets assignee=prepare-epic on new epics
 prepare-epic    -> sets assignee=implement-epic on completion
 implement-epic  -> sets status=in_review, assignee=finalize-epic
@@ -486,7 +490,7 @@ Write these fields as if explaining to someone with no conversation history.
 - Use all four content fields appropriately (not just `--description`)
 - Always provide `--reason` when closing (with OUTCOME)
 - Update notes with prefixes as if explaining to a future agent with zero context
-- Create a bead for every bug, every code change, and every documentation change - if it gets committed, it gets a bead
+- Create a bead for substantive work: bugs, features, multi-file code changes, anything spanning sessions or carrying dependencies
 - Create discovered issues immediately - don't lose context
 - Check `bd ready` at session start and after closing tasks
 - Use `--json` for machine-parseable output
@@ -494,7 +498,7 @@ Write these fields as if explaining to someone with no conversation history.
 
 ### DON'T
 
-- Don't skip bead creation because a change feels "small" or "trivial" - if it's committed, it needs a bead
+- Don't over-track: Beads CRUD, simple doc/PRD edits, and planning notes do not need their own bead (and do not need a feature branch or PR)
 - Don't forget to claim tasks with `in_progress` before starting
 - Don't close without `--reason` - future sessions need context
 - Don't create more than 4 levels (feature -> epic -> task -> subtask)
