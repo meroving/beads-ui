@@ -53,8 +53,9 @@ sizes and shows you the reason. Shorten and retry; do not route around it.
 
 File inputs (`--body-file`, `--stdin`, `$(cat file)`) and `--notes` replacement on update
 are rejected. A bead already over 6,000 bytes accepts only `--append-notes` or `bd close`.
-Never paste diffs, test output, stack traces, or transcripts into a bead; long evidence
-lives in a repo doc and the bead links it.
+A bead states each acceptance criterion and the command or test that proves it; it links
+no evidence document. If the four parts do not fit the caps, shorten the claim or split the
+bead; if that fails, stop and ask.
 
 ### Example
 
@@ -119,7 +120,7 @@ prepare-feature  -> assignee=prepare-epic on new epics
 prepare-epic     -> assignee=implement-epic
 implement-epic   -> status=in_review, assignee=finalize-epic
 finalize-epic    -> assignee=finalize-feature (pass) or implement-epic (fail)
-finalize-feature -> closes beads, or one remediation bead per round
+finalize-feature -> closes beads, or reports Blocking findings; the user decides
 ```
 
 Find queued work with `bd children <parent>` filtered by status and assignee, then
