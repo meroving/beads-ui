@@ -80,9 +80,11 @@ bd close <id> --reason="Wrapper landed in a1b2c3d; unit and integration suites g
 - Substantive work the user asked for: multi-file code changes, bugs, anything spanning
   sessions or carrying dependencies.
 - Not for: bead CRUD, single-doc or PRD edits, planning notes, formatting, config touches.
-- **Discovered work is not a new bead.** Something found while doing a bead goes as one
-  line under "Discovered, not done" in your final message. The user decides whether it
-  becomes a bead. Investigate a bug before filing it, and file only what is confirmed.
+- **Discovered work: fix, file, or report.** Something found while doing a bead is fixed
+  now when it is within reach of the current bead. Otherwise it becomes a bead only when a
+  command reproduces the failure; that command goes in the bead's Verification field,
+  observed red at creation. Anything with no reproducing command goes as one line under
+  "Discovered, not done" in your final message and the user decides.
 - One bead per unit of work. Do not split a task into per-file or per-finding beads.
 
 ## Essential commands
