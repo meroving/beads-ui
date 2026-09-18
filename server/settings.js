@@ -1,18 +1,17 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  DEFAULT_BOARD_COLUMNS,
+  isValidColumnDef
+} from '../app/board-columns.js';
 import { debug } from './logging.js';
 
-const log = debug('settings');
-
 /**
- * @typedef {Object} ColumnDefinition
- * @property {string} id - Unique column identifier.
- * @property {string} label - Display label for the column header.
- * @property {string} subscription - Subscription type for data (e.g., 'blocked-issues').
- * @property {Record<string, unknown>} [params] - Optional subscription parameters.
- * @property {string} drop_status - Status to set when a card is dropped into this column.
+ * @import { ColumnDef as ColumnDefinition } from '../app/board-columns.js'
  */
+
+const log = debug('settings');
 
 /**
  * @typedef {Object} SettingsObject
@@ -22,32 +21,7 @@ const log = debug('settings');
  */
 
 /** @type {ColumnDefinition[]} */
-const DEFAULT_COLUMNS = [
-  {
-    id: 'blocked',
-    label: 'Blocked',
-    subscription: 'blocked-issues',
-    drop_status: 'open'
-  },
-  {
-    id: 'ready',
-    label: 'Ready',
-    subscription: 'ready-issues',
-    drop_status: 'open'
-  },
-  {
-    id: 'in-progress',
-    label: 'In Progress',
-    subscription: 'in-progress-issues',
-    drop_status: 'in_progress'
-  },
-  {
-    id: 'closed',
-    label: 'Closed',
-    subscription: 'closed-issues',
-    drop_status: 'closed'
-  }
-];
+const DEFAULT_COLUMNS = DEFAULT_BOARD_COLUMNS;
 
 /** @type {SettingsObject} */
 export const DEFAULT_SETTINGS = {
@@ -314,20 +288,7 @@ export function watchProjectSettings(workspace_root, onChange, options = {}) {
  * @returns {col is ColumnDefinition}
  */
 export function validateColumnDef(col) {
-  if (!col || typeof col !== 'object') {
-    return false;
-  }
-  const c = /** @type {Record<string, unknown>} */ (col);
-  return (
-    typeof c.id === 'string' &&
-    c.id.length > 0 &&
-    typeof c.label === 'string' &&
-    c.label.length > 0 &&
-    typeof c.subscription === 'string' &&
-    c.subscription.length > 0 &&
-    typeof c.drop_status === 'string' &&
-    c.drop_status.length > 0
-  );
+  return isValidColumnDef(col);
 }
 
 /**

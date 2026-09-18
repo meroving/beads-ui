@@ -83,7 +83,14 @@ describe('settings', () => {
       const statuses = DEFAULT_SETTINGS.board.columns.map(
         (/** @type {{ drop_status: string }} */ c) => c.drop_status
       );
-      expect(statuses).toEqual(['open', 'open', 'in_progress', 'closed']);
+      expect(statuses).toEqual(['blocked', 'open', 'in_progress', 'closed']);
+    });
+
+    test('unions stored-blocked issues into the Blocked column', async () => {
+      const { DEFAULT_SETTINGS } = await freshImport();
+      expect(DEFAULT_SETTINGS.board.columns[0].extra_sources).toEqual([
+        { subscription: 'status-blocked-issues' }
+      ]);
     });
   });
 

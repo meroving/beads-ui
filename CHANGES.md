@@ -1,5 +1,106 @@
 # Changes
 
+## 0.12.6
+
+- [`45babcf`](https://github.com/mantoni/beads-ui/commit/45babcfcf61b9a26f6ccdc8236a56015a148caa3)
+  chore(deps): refresh lockfile security updates (gprocunier)
+- [`2c25d95`](https://github.com/mantoni/beads-ui/commit/2c25d9538dc8244d27dfd668fa93c8b0acc212e9)
+  perf(server): prioritize interactive detail reads (#111) (turbra)
+    >
+    > Prioritize interactive detail requests while preserving bounded background progress, cache issue detail and comments per workspace, invalidate stale data on mutations and refreshes, and load comments asynchronously. Includes scheduler, cache, invalidation, and detail-loading regression coverage.
+- [`88c698c`](https://github.com/mantoni/beads-ui/commit/88c698c0bb28a26833b102e3a69e2ab096d18cf0)
+  perf(app): coalesce subscription renders (#110) (turbra)
+    >
+    > Coalesce subscription updates into one render per frame, scope view subscriptions to the issue IDs they consume, preserve keyed DOM identity, and avoid unchanged preference writes. Includes unit, integration, and performance regression coverage.
+- [`37dde24`](https://github.com/mantoni/beads-ui/commit/37dde2415b27c4240d955963178cb6eb103342fb)
+  fix(detail): render delete prompt safely (#109) (turbra)
+    >
+    > Render issue titles as inert dialog content, preserve the original delete target, bind cancellation once, and improve dialog accessibility. Includes regression coverage for hostile titles, repeated cancellation, and selection changes.
+
+_Released by gprocunier on 2026-08-11._
+
+## 0.12.5
+
+- [`7edc3d6`](https://github.com/mantoni/beads-ui/commit/7edc3d66cf095c4eae097a19abaaee5d764d02ec)
+  feat(status): support all built-in bd statuses (#100) (Inconceivable Labs)
+    >
+    > Render every built-in bd status, expose only human-settable statuses for editing, persist multi-status filters with an explicit Ready scope, and keep stored-blocked and dependency-blocked issues visible together on the Board.
+- [`1813560`](https://github.com/mantoni/beads-ui/commit/1813560453dcc07a9af9ef18c259ee94bb11900e)
+  feat(list): make Type column editable (#91) (Inconceivable Labs)
+    >
+    > Allow inline Type changes in issue and epic rows, add decision type support, and keep both the mutation and follow-up read pinned to the active workspace.
+
+_Released by gprocunier on 2026-08-01._
+
+## 0.12.4
+
+- [`bd211f1`](https://github.com/mantoni/beads-ui/commit/bd211f1a76b3fc0a38f2914e2e33451347d857c6)
+  feat(detail): add dates card (#90) (Inconceivable Labs)
+    >
+    > Show created, started, updated, closed, and deferred timestamps in issue detail. Include focused formatting and conditional-rendering coverage.
+
+_Released by gprocunier on 2026-07-26._
+
+## 0.12.3
+
+- [`cee1d6d`](https://github.com/mantoni/beads-ui/commit/cee1d6d945828e33eebaf7ca76604fe8a457a772)
+  fix(list): remove the silent 50-issue list limit (#99) (Inconceivable Labs)
+    >
+    > Pass --limit 0 for all-issues and in-progress subscriptions so the UI does not silently truncate bd results.
+- [`04c78e3`](https://github.com/mantoni/beads-ui/commit/04c78e352fb6c0af0616962701a39e42bc938cb3)
+  fix(ws): pin bd invocations to the active workspace cwd (#88) (Inconceivable Labs)
+    >
+    > Ensure every bd mutation and follow-up read runs in the active workspace, and centralize non-zero bd exit logging.
+
+_Released by gprocunier on 2026-07-17._
+
+## 0.12.2
+
+- [`92b80f9`](https://github.com/mantoni/beads-ui/commit/92b80f90339a7619dc0d8f7a10046b023658004d)
+  fix: use 'bd comments add' so --author is accepted (#97) (Jim C)
+    >
+    > Fixes #67 and #74.
+- [`bc972a2`](https://github.com/mantoni/beads-ui/commit/bc972a2af68c0ae6fcab9b6c0613a28543fea5ec)
+  fix(detail): request --include-dependents so children render (#94) (Nick Veenhof)
+    >
+    > Fixes #93.
+
+_Released by gprocunier on 2026-07-10._
+
+## 0.12.1
+
+- [`dee0ffa`](https://github.com/mantoni/beads-ui/commit/dee0ffac6a5635c6761a4c97e3878157f2131f6b)
+  Fix detail comments after live updates (#92) (Greg Procunier)
+    >
+    > Co-authored-by: gprocunier <gprocunier@users.noreply.github.com>
+- [`41135d1`](https://github.com/mantoni/beads-ui/commit/41135d185936c73b719a8cd27519b0918108de00)
+  feat(cli): print server URL on start/restart when reusing existing server (#79) (Leon Letto)
+    >
+    > Previously `bdui restart` (and `start` when the default port was already
+    > in use by another bdui) only reported that the workspace was registered
+    > with an existing server, with no clickable URL in the terminal output.
+    > This adds a `beads ui   listening on <url>` line to those paths so users
+    > can click straight through to the UI.
+
+_Released by gprocunier on 2026-07-03._
+
+## 0.12.0
+
+- [`8559d4a`](https://github.com/mantoni/beads-ui/commit/8559d4af699555b9943914a2e790965c9e4d8da7)
+  feat(cli): auto-increment port when default is in use (#73) (Leon Letto)
+- [`527e9a5`](https://github.com/mantoni/beads-ui/commit/527e9a59a01e1b93c1488cb1e2ed26ae346b358c)
+  feat(cli): preserve workspaces across bdui restart (#72) (Leon Letto)
+- [`5996b39`](https://github.com/mantoni/beads-ui/commit/5996b39499bcf0e460133c27a7ee20b30c677ab5)
+  chore: add dev-docs to .prettierignore (Leon Letto)
+- [`08f1439`](https://github.com/mantoni/beads-ui/commit/08f1439d13fc5b534de13e1ea94af4407174d76f)
+  style: fix prettier formatting in daemon and test files (Leon Letto)
+- [`4a0c791`](https://github.com/mantoni/beads-ui/commit/4a0c791300f12e47faae74e8237f823857be7dd9)
+  fix: resolve TS18048 type error in restart test (Leon Letto)
+- [`c973d86`](https://github.com/mantoni/beads-ui/commit/c973d8693c6cfa3a5f8ad0905134465903e527a2)
+  feat(cli): preserve listening port across bdui restart (Leon Letto)
+
+_Released by [Maximilian Antoni](https://github.com/mantoni) on 2026-04-02._
+
 ## 0.11.3
 
 - [`47261a7`](https://github.com/mantoni/beads-ui/commit/47261a7a95d5a17b480ae56c4a10b5eeb49d1007)

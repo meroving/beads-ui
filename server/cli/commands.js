@@ -1,6 +1,8 @@
 import { getConfig } from '../config.js';
 import { resolveWorkspaceDatabase } from '../db.js';
 import {
+  detectListeningPort,
+  findAvailablePort,
   isProcessRunning,
   printServerUrl,
   readPidFile,
@@ -8,7 +10,14 @@ import {
   startDaemon,
   terminateProcess
 } from './daemon.js';
-import { openUrl, registerWorkspaceWithServer, waitForServer } from './open.js';
+import {
+  fetchWorkspacesFromServer,
+  openUrl,
+  registerWorkspaceWithServer,
+  waitForServer
+} from './open.js';
+
+const RESTART_SERVER_READY_MS = 400;
 
 const STARTUP_SETTLE_MS = 200;
 const REGISTER_RETRY_ATTEMPTS = 5;
@@ -45,6 +54,7 @@ export async function handleStart(options) {
       console.log('Workspace registered: %s', cwd);
     }
     console.warn('Server is already running.');
+    console.log('beads ui   listening on %s', url);
     if (should_open) {
       await openUrl(url);
     }
@@ -55,12 +65,51 @@ export async function handleStart(options) {
     removePidFile();
   }
 
+  const { port: config_port, host: config_host } = getConfig();
+
+  // When the user did not pass an explicit --port, check whether the default
+  // port is already in use. If something is already listening, try to register
+  // with it first — it may be an existing bdui instance we can reuse.
+  // Only auto-increment to the next port if registration fails.
+  let effective_port = options?.port;
+  if (!effective_port) {
+    const available = await findAvailablePort(config_port, config_host);
+    if (available === null) {
+      console.error(
+        'No available port found (tried %d–%d).',
+        config_port,
+        config_port + 9
+      );
+      return 1;
+    }
+    if (available !== config_port) {
+      // Default port is busy — try to register with whatever is there.
+      const existing_url = `http://${config_host}:${config_port}`;
+      const registered = await registerCurrentWorkspace(existing_url, cwd);
+      if (registered) {
+        console.log('Workspace registered with existing server: %s', cwd);
+        console.log('beads ui   listening on %s', existing_url);
+        if (should_open) {
+          await openUrl(existing_url);
+        }
+        return 0;
+      }
+      // Not a bdui instance — auto-increment to the next available port.
+      console.log('Port %d in use, using %d instead.', config_port, available);
+      effective_port = available;
+    }
+  }
+
+  // Set PORT env so getConfig() returns the correct URL for registration
+  if (effective_port) {
+    process.env.PORT = String(effective_port);
+  }
   const { url } = getConfig();
 
   const started = startDaemon({
     is_debug: options?.is_debug,
     host: options?.host,
-    port: options?.port
+    port: effective_port
   });
   if (started && started.pid > 0) {
     // Give the spawned daemon a brief moment to fail fast (for example EADDRINUSE).
@@ -77,6 +126,7 @@ export async function handleStart(options) {
           'Daemon exited early; registered workspace with existing server: %s',
           cwd
         );
+        console.log('beads ui   listening on %s', url);
         return 0;
       }
       return 1;
@@ -181,23 +231,58 @@ export async function handleStop() {
 
 /**
  * Handle `restart` command: stop (ignore not-running) then start.
- *
- * @returns {Promise<number>} Exit code (0 on success)
- */
-/**
- * Handle `restart` command: stop (ignore not-running) then start.
  * Accepts the same options as `handleStart` and passes them through,
  * so restart only opens a browser when `open` is explicitly true.
  *
- * @param {{ open?: boolean }} [options]
+ * When the user does not pass explicit `--port`, the restart detects the
+ * port the running daemon is listening on and reuses it.
+ *
+ * @param {{ open?: boolean, host?: string, port?: number }} [options]
  * @returns {Promise<number>}
  */
 export async function handleRestart(options) {
+  // Capture state from the running server before stopping it.
+  let detected_port = null;
+  /** @type {Array<{ path: string, database: string }>} */
+  let saved_workspaces = [];
+  const existing_pid = readPidFile();
+  if (existing_pid && isProcessRunning(existing_pid)) {
+    detected_port = detectListeningPort(existing_pid);
+
+    const { url } = getConfig();
+    saved_workspaces = await fetchWorkspacesFromServer(url);
+  }
+
   const stop_code = await handleStop();
   // 0 = stopped, 2 = not running; both are acceptable to proceed
   if (stop_code !== 0 && stop_code !== 2) {
     return 1;
   }
-  const start_code = await handleStart(options);
-  return start_code === 0 ? 0 : 1;
+
+  // Reuse detected port unless the user explicitly passed one.
+  const merged_options = { ...options };
+  if (!merged_options.port && detected_port) {
+    merged_options.port = detected_port;
+  }
+
+  const start_code = await handleStart(merged_options);
+  if (start_code !== 0) {
+    return 1;
+  }
+
+  // Re-register workspaces from the previous server.
+  if (saved_workspaces.length > 0) {
+    const { url } = getConfig();
+    await waitForServer(url, RESTART_SERVER_READY_MS);
+    for (const ws of saved_workspaces) {
+      if (ws.path && ws.database) {
+        await registerWorkspaceWithServer(url, {
+          path: ws.path,
+          database: ws.database
+        });
+      }
+    }
+  }
+
+  return 0;
 }

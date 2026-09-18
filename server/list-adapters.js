@@ -59,7 +59,7 @@ function delay(ms) {
  * caller's existing error handling still applies.
  *
  * @param {string[]} args
- * @param {{ cwd?: string }} options
+ * @param {{ cwd?: string, priority?: 'interactive' | 'background' }} options
  * @returns {Promise<{ code: number, stdoutJson?: unknown, stderr?: string }>}
  */
 async function runBdJsonWithRetry(args, options) {
@@ -67,7 +67,10 @@ async function runBdJsonWithRetry(args, options) {
   /** @type {{ code: number, stdoutJson?: unknown, stderr?: string }} */
   let res = { code: -1, stderr: 'bd not run' };
   for (let attempt = 0; attempt <= retries; attempt++) {
-    res = await runBdJson(args, { cwd: options.cwd });
+    res = await runBdJson(args, {
+      cwd: options.cwd,
+      priority: options.priority
+    });
     const failed = !res || res.code !== 0 || !('stdoutJson' in res);
     if (!failed || attempt === retries) {
       return res;
@@ -99,7 +102,8 @@ export function mapSubscriptionToBdArgs(spec) {
   const t = String(spec.type);
   switch (t) {
     case 'all-issues': {
-      return ['list', '--json', '--tree=false'];
+      // `--limit 0` = unlimited. Without it, `bd list` caps at its default 50.
+      return ['list', '--json', '--tree=false', '--limit', '0'];
     }
     case 'epics': {
       return ['epic', 'status', '--json'];
@@ -107,11 +111,35 @@ export function mapSubscriptionToBdArgs(spec) {
     case 'blocked-issues': {
       return ['blocked', '--json'];
     }
+    case 'status-blocked-issues': {
+      // `bd blocked` reports only dependency-blocked issues (whose own status
+      // is `open`), so issues whose stored status is `blocked` need their own
+      // query. The Board's Blocked lane is the union of both.
+      // `--limit 0` = unlimited. Without it, `bd list` caps at its default 50.
+      return [
+        'list',
+        '--json',
+        '--tree=false',
+        '--status',
+        'blocked',
+        '--limit',
+        '0'
+      ];
+    }
     case 'ready-issues': {
       return ['ready', '--limit', '1000', '--json'];
     }
     case 'in-progress-issues': {
-      return ['list', '--json', '--tree=false', '--status', 'in_progress'];
+      // `--limit 0` = unlimited. Without it, `bd list` caps at its default 50.
+      return [
+        'list',
+        '--json',
+        '--tree=false',
+        '--status',
+        'in_progress',
+        '--limit',
+        '0'
+      ];
     }
     case 'closed-issues': {
       return [
@@ -145,7 +173,7 @@ export function mapSubscriptionToBdArgs(spec) {
       if (id.length === 0) {
         throw badRequest('Missing param: params.id');
       }
-      return ['show', id, '--json'];
+      return ['show', id, '--json', '--include-dependents'];
     }
     default: {
       throw badRequest(`Unknown subscription type: ${t}`);
@@ -210,7 +238,7 @@ export function normalizeIssueList(value) {
  * Errors do not throw; they are surfaced as a structured object.
  *
  * @param {{ type: string, params?: Record<string, string | number | boolean> }} spec
- * @param {{ cwd?: string }} [options] - Optional working directory for bd command
+ * @param {{ cwd?: string, priority?: 'interactive' | 'background' }} [options] - Optional bd command settings
  * @returns {Promise<FetchListResultSuccess | FetchListResultFailure>}
  */
 export async function fetchListForSubscription(spec, options = {}) {
@@ -226,7 +254,10 @@ export async function fetchListForSubscription(spec, options = {}) {
   }
 
   try {
-    const res = await runBdJsonWithRetry(args, { cwd: options.cwd });
+    const res = await runBdJsonWithRetry(args, {
+      cwd: options.cwd,
+      priority: options.priority
+    });
     if (!res || res.code !== 0 || !('stdoutJson' in res)) {
       log(
         'bd failed for %o (args=%o) code=%s stderr=%s',

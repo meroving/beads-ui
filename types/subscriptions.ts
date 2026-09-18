@@ -20,6 +20,8 @@ export interface Issue extends IssueRef {
   issue_type?: string;
   assignee?: string | null;
   labels?: string[];
+  comment_count?: number;
+  comments?: Array<Record<string, unknown>>;
   // Relationship fields for detail payloads
   dependencies?: DependencyRef[];
   dependents?: DependencyRef[];
@@ -39,7 +41,10 @@ export interface DependencyRef {
 export type SubscriptionType =
   | 'all-issues'
   | 'epics'
+  /** Dependency-blocked issues (`bd blocked`); their own status is `open`. */
   | 'blocked-issues'
+  /** Issues whose stored status is `blocked` (`bd list --status blocked`). */
+  | 'status-blocked-issues'
   | 'ready-issues'
   | 'in-progress-issues'
   | 'closed-issues'

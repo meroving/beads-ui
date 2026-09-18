@@ -291,6 +291,61 @@ describe('views/settings', () => {
       );
       expect(firstLabel?.textContent).toBe('Updated Label');
     });
+    test('editing a column keeps its extra sources', async () => {
+      const transport = createMockTransport({
+        global_settings: {
+          board: {
+            columns: [
+              {
+                id: 'blocked',
+                label: 'Blocked',
+                subscription: 'blocked-issues',
+                extra_sources: [{ subscription: 'status-blocked-issues' }],
+                drop_status: 'blocked'
+              }
+            ]
+          },
+          discovery: { scan_roots: [], scan_depth: 2 }
+        }
+      });
+      const view = createSettingsView(mount, store, transport);
+      await view.load();
+
+      const row = activePanel(mount).querySelector('.settings-column-row');
+      expect(row?.querySelector('.settings-column-sub')?.textContent).toBe(
+        'blocked-issues + status-blocked-issues'
+      );
+
+      /** @type {HTMLButtonElement} */ (
+        mount.querySelector('.settings-column-edit')
+      ).click();
+      const form = /** @type {HTMLElement} */ (
+        mount.querySelector('.settings-column-form')
+      );
+      /** @type {HTMLInputElement} */ (form.querySelector('#col-label')).value =
+        'Stuck';
+      /** @type {HTMLButtonElement} */ (
+        form.querySelector('.settings-form-save')
+      ).click();
+      /** @type {HTMLButtonElement} */ (
+        mount.querySelector('.settings-save')
+      ).click();
+
+      await vi.waitFor(() => {
+        const saveMsg = transport.sent.find((m) => m.type === 'save-settings');
+        expect(saveMsg).toBeDefined();
+      });
+      const saveMsg = transport.sent.find((m) => m.type === 'save-settings');
+      expect(saveMsg?.payload.settings.board.columns).toEqual([
+        {
+          id: 'blocked',
+          label: 'Stuck',
+          subscription: 'blocked-issues',
+          extra_sources: [{ subscription: 'status-blocked-issues' }],
+          drop_status: 'blocked'
+        }
+      ]);
+    });
   });
 
   describe('column delete', () => {

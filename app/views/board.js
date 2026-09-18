@@ -1,4 +1,10 @@
+/**
+ * @import { ColumnDef } from '../board-columns.js'
+ * @import { Status } from '../protocol.js'
+ */
 import { html, render } from 'lit-html';
+import { repeat } from 'lit-html/directives/repeat.js';
+import { DEFAULT_BOARD_COLUMNS, columnSources } from '../board-columns.js';
 import { createListSelectors } from '../data/list-selectors.js';
 import { cmpClosedDesc, cmpPriorityThenCreated } from '../data/sort.js';
 import { createIssueIdRenderer } from '../utils/issue-id-renderer.js';
@@ -36,7 +42,7 @@ export function computeColMinWidth(
  * @typedef {{
  *   id: string,
  *   title?: string,
- *   status?: 'open'|'in_progress'|'closed',
+ *   status?: Status,
  *   priority?: number,
  *   issue_type?: string,
  *   created_at?: number,
@@ -45,16 +51,6 @@ export function computeColMinWidth(
  *   parent?: string,
  *   assignee?: string
  * }} IssueLite
- */
-
-/**
- * @typedef {Object} ColumnDef
- * @property {string} id - Unique column identifier.
- * @property {string} label - Display label for the column header.
- * @property {string} subscription - Subscription type for data.
- * @property {Record<string, unknown>} [params] - Optional subscription parameters.
- * @property {string} drop_status - Status to set when a card is dropped.
- * @property {boolean} [is_closed] - True if this column represents closed issues.
  */
 
 /**
@@ -97,40 +93,15 @@ export function createBoardView(options) {
   const col_defs = (
     Array.isArray(columns) && columns.length > 0
       ? columns
-      : [
-          {
-            id: 'blocked',
-            label: 'Blocked',
-            subscription: 'blocked-issues',
-            drop_status: 'open',
-            is_closed: false
-          },
-          {
-            id: 'ready',
-            label: 'Ready',
-            subscription: 'ready-issues',
-            drop_status: 'open',
-            is_closed: false
-          },
-          {
-            id: 'in-progress',
-            label: 'In Progress',
-            subscription: 'in-progress-issues',
-            drop_status: 'in_progress',
-            is_closed: false
-          },
-          {
-            id: 'closed',
-            label: 'Closed',
-            subscription: 'closed-issues',
-            drop_status: 'closed',
-            is_closed: true
-          }
-        ]
+      : DEFAULT_BOARD_COLUMNS
   ).map((col) => ({
     ...col,
     is_closed: col.is_closed ?? col.subscription === 'closed-issues'
   }));
+  // Every subscription feeding the board, for scoped re-render and counts
+  const board_client_ids = col_defs.flatMap((col) =>
+    columnSources(col).map((src) => src.client_id)
+  );
 
   /** @type {Map<string, IssueLite[]>} */
   const column_data = new Map();
@@ -528,7 +499,11 @@ export function createBoardView(options) {
           role="list"
           aria-labelledby=${col_id + '-header'}
         >
-          ${items.map((it) => cardTemplate(it))}
+          ${repeat(
+            items,
+            (it) => it.id,
+            (it, index) => cardTemplate(it, col.label, index === 0)
+          )}
         </div>
       </section>
     `;
@@ -536,20 +511,24 @@ export function createBoardView(options) {
 
   /**
    * @param {IssueLite} it
+   * @param {string} column_title
+   * @param {boolean} is_first
    */
-  function cardTemplate(it) {
+  function cardTemplate(it, column_title, is_first) {
+    const title = it.title || '(no title)';
     return html`
       <article
         class="board-card"
         data-issue-id=${it.id}
         role="listitem"
-        tabindex="-1"
+        tabindex=${is_first ? '0' : '-1'}
+        aria-label=${`Issue ${title} - Column ${column_title}`}
         draggable="true"
         @click=${(/** @type {MouseEvent} */ ev) => onCardClick(ev, it.id)}
         @dragstart=${(/** @type {DragEvent} */ ev) => onDragStart(ev, it.id)}
         @dragend=${onDragEnd}
       >
-        <div class="board-card__title">${it.title || '(no title)'}</div>
+        <div class="board-card__title">${title}</div>
         <div class="board-card__meta">
           ${createTypeBadge(it.issue_type)} ${createPriorityBadge(it.priority)}
           ${createIssueIdRenderer(it.id, { class_name: 'mono' })}
@@ -625,7 +604,7 @@ export function createBoardView(options) {
    * Update issue status via WebSocket transport.
    *
    * @param {string} issue_id
-   * @param {'open'|'in_progress'|'closed'} new_status
+   * @param {'open'|'in_progress'|'blocked'|'closed'} new_status
    */
   async function updateIssueStatus(issue_id, new_status) {
     if (!transport) {
@@ -704,56 +683,7 @@ export function createBoardView(options) {
 
   function doRender() {
     render(template(), mount_element);
-    postRenderEnhance();
     updateCardCondensation();
-  }
-
-  /**
-   * Enhance rendered board with a11y and keyboard navigation.
-   * - Roving tabindex per column (first card tabbable).
-   * - ArrowUp/ArrowDown within column.
-   * - ArrowLeft/ArrowRight to adjacent non-empty column (focus top card).
-   * - Enter/Space to open details for focused card.
-   */
-  function postRenderEnhance() {
-    try {
-      /** @type {HTMLElement[]} */
-      const columns = Array.from(
-        mount_element.querySelectorAll('.board-column')
-      );
-      for (const col of columns) {
-        const body = /** @type {HTMLElement|null} */ (
-          col.querySelector('.board-column__body')
-        );
-        if (!body) {
-          continue;
-        }
-        /** @type {HTMLElement[]} */
-        const cards = Array.from(body.querySelectorAll('.board-card'));
-        // Assign aria-label using column header for screen readers
-        const header = /** @type {HTMLElement|null} */ (
-          col.querySelector('.board-column__header')
-        );
-        const col_name = header ? header.textContent?.trim() || '' : '';
-        for (const card of cards) {
-          const title_el = /** @type {HTMLElement|null} */ (
-            card.querySelector('.board-card__title')
-          );
-          const t = title_el ? title_el.textContent?.trim() || '' : '';
-          card.setAttribute(
-            'aria-label',
-            `Issue ${t || '(no title)'} - Column ${col_name}`
-          );
-          // Default roving setup
-          card.tabIndex = -1;
-        }
-        if (cards.length > 0) {
-          cards[0].tabIndex = 0;
-        }
-      }
-    } catch {
-      // non-fatal
-    }
   }
 
   /**
@@ -1064,6 +994,24 @@ export function createBoardView(options) {
   }
 
   /**
+   * Items for a column: its single subscription as-is, or the id-deduplicated
+   * union of all its sources.
+   *
+   * @param {ColumnDef} col
+   * @param {'ready'|'blocked'|'in_progress'|'closed'} mode
+   * @returns {IssueLite[]}
+   */
+  function selectColumn(col, mode) {
+    if (!selectors) {
+      return [];
+    }
+    const ids = columnSources(col).map((src) => src.client_id);
+    return ids.length === 1
+      ? selectors.selectBoardColumn(ids[0], mode)
+      : selectors.selectBoardColumnUnion(ids, mode);
+  }
+
+  /**
    * Apply board filters (parent, assignee, type) with AND logic
    * to all entries in column_data Map.
    */
@@ -1109,10 +1057,7 @@ export function createBoardView(options) {
         const in_prog_ids = new Set();
         for (const col of col_defs) {
           if (col.subscription === 'in-progress-issues') {
-            const items = selectors.selectBoardColumn(
-              'tab:board:' + col.id,
-              'in_progress'
-            );
+            const items = selectColumn(col, 'in_progress');
             for (const it of items) {
               in_prog_ids.add(it.id);
             }
@@ -1126,10 +1071,7 @@ export function createBoardView(options) {
             continue; // already handled above
           }
           const mode = columnToMode(col);
-          const items = selectors.selectBoardColumn(
-            'tab:board:' + col.id,
-            mode
-          );
+          const items = selectColumn(col, mode);
 
           if (col.subscription === 'ready-issues') {
             // Ready excludes items that are in progress
@@ -1169,7 +1111,7 @@ export function createBoardView(options) {
       } catch {
         // ignore
       }
-    });
+    }, board_client_ids);
   }
 
   return {
@@ -1201,8 +1143,8 @@ export function createBoardView(options) {
           }
         };
         let total_items = 0;
-        for (const col of col_defs) {
-          total_items += cnt('tab:board:' + col.id);
+        for (const id of board_client_ids) {
+          total_items += cnt(id);
         }
         const data = /** @type {any} */ (_data);
         /** @type {Record<string, string>} */

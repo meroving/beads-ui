@@ -1,4 +1,5 @@
 import { html, render } from 'lit-html';
+import { SETTABLE_STATUSES } from '../protocol.js';
 import { debug } from '../utils/logging.js';
 
 /**
@@ -20,7 +21,7 @@ export function createSettingsView(mount_element, store, transport) {
   /** @type {any} */
   let saved_project = null;
 
-  /** @type {Array<{id: string, label: string, subscription: string, params?: Record<string, string>, drop_status: string}>} */
+  /** @type {Array<{id: string, label: string, subscription: string, params?: Record<string, string>, extra_sources?: Array<{subscription: string, params?: Record<string, string | number | boolean>}>, drop_status: string}>} */
   let draft_columns = [];
 
   /** @type {{ scan_roots: string[], scan_depth: number }} */
@@ -29,7 +30,7 @@ export function createSettingsView(mount_element, store, transport) {
   /** @type {boolean} */
   let local_override = false;
 
-  /** @type {Array<{id: string, label: string, subscription: string, params?: Record<string, string>, drop_status: string}>} */
+  /** @type {Array<{id: string, label: string, subscription: string, params?: Record<string, string>, extra_sources?: Array<{subscription: string, params?: Record<string, string | number | boolean>}>, drop_status: string}>} */
   let draft_project_columns = [];
 
   /** @type {number|null} */
@@ -233,6 +234,7 @@ export function createSettingsView(mount_element, store, transport) {
     'all-issues',
     'epics',
     'blocked-issues',
+    'status-blocked-issues',
     'ready-issues',
     'in-progress-issues',
     'closed-issues',
@@ -244,7 +246,8 @@ export function createSettingsView(mount_element, store, transport) {
   const AUTO_SUGGEST_DROP_STATUS = {
     'closed-issues': 'closed',
     'in-progress-issues': 'in_progress',
-    'blocked-issues': 'open',
+    'blocked-issues': 'blocked',
+    'status-blocked-issues': 'blocked',
     'ready-issues': 'open',
     'status-issues': 'in_progress',
     'all-issues': 'open',
@@ -333,12 +336,15 @@ export function createSettingsView(mount_element, store, transport) {
       params = { id: (issue_param?.value || '').trim() };
     }
 
+    const extra_sources =
+      editing_index !== null ? cols[editing_index]?.extra_sources : undefined;
     const col_def = {
       id,
       label,
       subscription,
       drop_status,
-      ...(params ? { params } : {})
+      ...(params ? { params } : {}),
+      ...(extra_sources ? { extra_sources } : {})
     };
     if (editing_index !== null) {
       cols[editing_index] = col_def;
@@ -355,7 +361,7 @@ export function createSettingsView(mount_element, store, transport) {
   /**
    * Render the column form template for add/edit.
    *
-   * @param {{id: string, label: string, subscription: string, params?: Record<string, string>, drop_status: string}|null} column
+   * @param {{id: string, label: string, subscription: string, params?: Record<string, string>, extra_sources?: Array<{subscription: string, params?: Record<string, string | number | boolean>}>, drop_status: string}|null} column
    * @param {boolean} isEditing
    * @returns {import('lit-html').TemplateResult}
    */
@@ -410,7 +416,7 @@ export function createSettingsView(mount_element, store, transport) {
           : ''}
         <label for="col-drop-status">Drop Status</label>
         <select id="col-drop-status">
-          ${['open', 'in_progress', 'in_review', 'closed'].map(
+          ${SETTABLE_STATUSES.map(
             (s) =>
               html`<option
                 value=${s}
@@ -479,7 +485,7 @@ export function createSettingsView(mount_element, store, transport) {
   /**
    * Render column list template.
    *
-   * @param {Array<{id: string, label: string, subscription: string, params?: Record<string, string>, drop_status: string}>} columns
+   * @param {Array<{id: string, label: string, subscription: string, params?: Record<string, string>, extra_sources?: Array<{subscription: string, params?: Record<string, string | number | boolean>}>, drop_status: string}>} columns
    * @param {boolean} readonly
    * @returns {import('lit-html').TemplateResult}
    */
@@ -520,7 +526,12 @@ export function createSettingsView(mount_element, store, transport) {
                     >&#10303;</span
                   >`}
               <span class="settings-column-label">${col.label}</span>
-              <span class="settings-column-sub">${col.subscription}</span>
+              <span class="settings-column-sub"
+                >${[
+                  col.subscription,
+                  ...(col.extra_sources || []).map((src) => src.subscription)
+                ].join(' + ')}</span
+              >
               <span class="settings-column-status">${col.drop_status}</span>
               ${readonly
                 ? ''

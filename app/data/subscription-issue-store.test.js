@@ -1,5 +1,17 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { createSubscriptionIssueStore } from './subscription-issue-store.js';
+
+/** Wait for the store's configured notification boundary. */
+async function flushStoreNotifications() {
+  if (typeof globalThis.requestAnimationFrame === 'function') {
+    await new Promise((resolve) =>
+      globalThis.requestAnimationFrame(() => resolve(undefined))
+    );
+    return;
+  }
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 describe('subscription issue store', () => {
   test('applies snapshot and returns sorted snapshot', () => {
@@ -64,6 +76,82 @@ describe('subscription issue store', () => {
     const after = store.getById('X');
     expect(after?.title).toBe('X!');
     expect(after).toBe(before); // identity preserved
+  });
+
+  test('preserves comments when upsert omits comments', () => {
+    const store = createSubscriptionIssueStore('s1');
+    const comments = [{ id: 1, text: 'Existing comment' }];
+    store.applyPush({
+      type: 'snapshot',
+      id: 's1',
+      revision: 1,
+      issues: [
+        {
+          id: 'X',
+          title: 'x',
+          comments,
+          comment_count: 1,
+          created_at: 10_000,
+          updated_at: 10_000,
+          closed_at: null
+        }
+      ]
+    });
+
+    store.applyPush({
+      type: 'upsert',
+      id: 's1',
+      revision: 2,
+      issue: {
+        id: 'X',
+        title: 'X!',
+        comment_count: 1,
+        created_at: 10_000,
+        updated_at: 10_060,
+        closed_at: null
+      }
+    });
+
+    expect(store.getById('X')?.comments).toBe(comments);
+    expect(store.getById('X')?.title).toBe('X!');
+  });
+
+  test('accepts explicit incoming comments on upsert', () => {
+    const store = createSubscriptionIssueStore('s1');
+    store.applyPush({
+      type: 'snapshot',
+      id: 's1',
+      revision: 1,
+      issues: [
+        {
+          id: 'X',
+          title: 'x',
+          comments: [{ id: 1, text: 'Existing comment' }],
+          comment_count: 1,
+          created_at: 10_000,
+          updated_at: 10_000,
+          closed_at: null
+        }
+      ]
+    });
+
+    store.applyPush({
+      type: 'upsert',
+      id: 's1',
+      revision: 2,
+      issue: {
+        id: 'X',
+        title: 'X!',
+        comments: [],
+        comment_count: 0,
+        created_at: 10_000,
+        updated_at: 10_060,
+        closed_at: null
+      }
+    });
+
+    expect(store.getById('X')?.comments).toEqual([]);
+    expect(store.getById('X')?.comment_count).toBe(0);
   });
 
   test('ignores stale upsert by revision and timestamp', () => {
@@ -144,7 +232,7 @@ describe('subscription issue store', () => {
     expect(ids).toEqual(['B']);
   });
 
-  test('subscribe emits exactly once per applyPush', () => {
+  test('coalesces a synchronous applyPush burst', async () => {
     const store = createSubscriptionIssueStore('s1');
     let count = 0;
     store.subscribe(() => {
@@ -170,7 +258,147 @@ describe('subscription issue store', () => {
         closed_at: null
       }
     });
+    expect(count).toBe(0);
+
+    await flushStoreNotifications();
+
+    expect(count).toBe(1);
+
+    store.applyPush({
+      type: 'upsert',
+      id: 's1',
+      revision: 3,
+      issue: {
+        id: 'A',
+        title: 't2',
+        created_at: 10_000,
+        updated_at: 10_070,
+        closed_at: null
+      }
+    });
+
+    await flushStoreNotifications();
+
     expect(count).toBe(2);
+  });
+
+  test('coalesces push notifications until the next render frame', async () => {
+    /** @type {FrameRequestCallback[]} */
+    const frame_callbacks = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback) => {
+        frame_callbacks.push(callback);
+        return frame_callbacks.length;
+      })
+    );
+    try {
+      const store = createSubscriptionIssueStore('s1');
+      const listener = vi.fn();
+      store.subscribe(listener);
+      store.applyPush({
+        type: 'snapshot',
+        id: 's1',
+        revision: 1,
+        issues: [
+          { id: 'A', created_at: 10_000, updated_at: 10_000, closed_at: null }
+        ]
+      });
+
+      await Promise.resolve();
+      store.applyPush({
+        type: 'upsert',
+        id: 's1',
+        revision: 2,
+        issue: {
+          id: 'A',
+          title: 'updated',
+          created_at: 10_000,
+          updated_at: 10_060,
+          closed_at: null
+        }
+      });
+
+      expect(frame_callbacks).toHaveLength(1);
+      expect(listener).not.toHaveBeenCalled();
+      frame_callbacks[0](0);
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test('uses a microtask when render frames are unavailable', async () => {
+    vi.stubGlobal('requestAnimationFrame', undefined);
+    try {
+      const store = createSubscriptionIssueStore('s1');
+      const listener = vi.fn();
+      store.subscribe(listener);
+
+      store.applyPush({
+        type: 'snapshot',
+        id: 's1',
+        revision: 1,
+        issues: []
+      });
+      expect(listener).not.toHaveBeenCalled();
+
+      await Promise.resolve();
+
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test('sorts once for a synchronous push burst', async () => {
+    const sort = vi.fn((a, b) => a.id.localeCompare(b.id));
+    const store = createSubscriptionIssueStore('s1', { sort });
+    store.applyPush({
+      type: 'snapshot',
+      id: 's1',
+      revision: 1,
+      issues: [
+        { id: 'B', created_at: 10_000, updated_at: 10_000, closed_at: null },
+        { id: 'A', created_at: 10_000, updated_at: 10_000, closed_at: null }
+      ]
+    });
+    store.applyPush({
+      type: 'upsert',
+      id: 's1',
+      revision: 2,
+      issue: {
+        id: 'A',
+        title: 'A2',
+        created_at: 10_000,
+        updated_at: 10_060,
+        closed_at: null
+      }
+    });
+
+    await flushStoreNotifications();
+
+    expect(sort).toHaveBeenCalledTimes(1);
+    expect(store.snapshot().map((issue) => issue.id)).toEqual(['A', 'B']);
+  });
+
+  test('sorts immediately for a synchronous snapshot read', async () => {
+    const sort = vi.fn((a, b) => a.id.localeCompare(b.id));
+    const store = createSubscriptionIssueStore('s1', { sort });
+    store.applyPush({
+      type: 'snapshot',
+      id: 's1',
+      revision: 1,
+      issues: [
+        { id: 'B', created_at: 10_000, updated_at: 10_000, closed_at: null },
+        { id: 'A', created_at: 10_000, updated_at: 10_000, closed_at: null }
+      ]
+    });
+
+    expect(store.snapshot().map((issue) => issue.id)).toEqual(['A', 'B']);
+    expect(sort).toHaveBeenCalledTimes(1);
+    await flushStoreNotifications();
+    expect(sort).toHaveBeenCalledTimes(1);
   });
 
   test('dispose clears listeners and state', () => {

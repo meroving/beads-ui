@@ -1,7 +1,14 @@
 /**
+ * @import { ColumnDef } from './board-columns.js'
  * @import { MessageType } from './protocol.js'
+ * @import { StatusFilter } from './utils/status.js'
  */
 import { html, render } from 'lit-html';
+import {
+  DEFAULT_BOARD_COLUMNS,
+  columnSources,
+  isValidColumnDef
+} from './board-columns.js';
 import { createListSelectors } from './data/list-selectors.js';
 import { createDataLayer } from './data/providers.js';
 import { createSubscriptionIssueStores } from './data/subscription-issue-stores.js';
@@ -10,6 +17,7 @@ import { createHashRouter, parseHash, parseView } from './router.js';
 import { createStore } from './state.js';
 import { createActivityIndicator } from './utils/activity-indicator.js';
 import { debug } from './utils/logging.js';
+import { normalizeStatusFilters } from './utils/status.js';
 import { showToast } from './utils/toast.js';
 import { createBoardView } from './views/board.js';
 import { createDetailView } from './views/detail.js';
@@ -150,61 +158,18 @@ export function bootstrap(root_element) {
     /** @type {Map<string, () => Promise<void>>} */
     const unsub_board_map = new Map();
 
-    /** @type {Array<{id: string, label: string, subscription: string, params?: Record<string, string | number | boolean>, drop_status: string}>} */
-    const DEFAULT_COLUMNS = [
-      {
-        id: 'blocked',
-        label: 'Blocked',
-        subscription: 'blocked-issues',
-        drop_status: 'open'
-      },
-      {
-        id: 'ready',
-        label: 'Ready',
-        subscription: 'ready-issues',
-        drop_status: 'open'
-      },
-      {
-        id: 'in-progress',
-        label: 'In Progress',
-        subscription: 'in-progress-issues',
-        drop_status: 'in_progress'
-      },
-      {
-        id: 'closed',
-        label: 'Closed',
-        subscription: 'closed-issues',
-        drop_status: 'closed'
-      }
-    ];
-
     /**
      * Validate an array of column definitions from the server.
-     * Returns only valid entries. If none are valid, returns DEFAULT_COLUMNS.
+     * Returns only valid entries. If none are valid, returns the defaults.
      *
      * @param {unknown[]} cols
-     * @returns {Array<{id: string, label: string, subscription: string, params?: Record<string, string | number | boolean>, drop_status: string}>}
+     * @returns {ColumnDef[]}
      */
     function validateColumnDefs(cols) {
-      const valid = cols.filter((col) => {
-        if (!col || typeof col !== 'object' || Array.isArray(col)) {
-          return false;
-        }
-        const c = /** @type {Record<string, unknown>} */ (col);
-        return (
-          typeof c.id === 'string' &&
-          c.id.length > 0 &&
-          typeof c.label === 'string' &&
-          c.label.length > 0 &&
-          typeof c.subscription === 'string' &&
-          c.subscription.length > 0 &&
-          typeof c.drop_status === 'string' &&
-          c.drop_status.length > 0
-        );
-      });
+      const valid = cols.filter(isValidColumnDef);
       if (valid.length === 0) {
         log('all column definitions invalid, falling back to defaults');
-        return DEFAULT_COLUMNS;
+        return DEFAULT_BOARD_COLUMNS;
       }
       if (valid.length < cols.length) {
         log(
@@ -213,12 +178,11 @@ export function bootstrap(root_element) {
           valid.length
         );
       }
-      return /** @type {Array<{id: string, label: string, subscription: string, params?: Record<string, string | number | boolean>, drop_status: string}>} */ (
-        valid
-      );
+      return valid;
     }
 
-    let board_columns = DEFAULT_COLUMNS;
+    /** @type {ColumnDef[]} */
+    let board_columns = DEFAULT_BOARD_COLUMNS;
 
     // --- Workspace management ---
     /**
@@ -247,7 +211,9 @@ export function bootstrap(root_element) {
       /** @type {string[]} */
       const storeIds = ['tab:issues', 'tab:epics'];
       for (const col of board_columns) {
-        storeIds.push('tab:board:' + col.id);
+        for (const { client_id } of columnSources(col)) {
+          storeIds.push(client_id);
+        }
       }
       for (const id of storeIds) {
         try {
@@ -404,8 +370,8 @@ export function bootstrap(root_element) {
       client.onConnection(onConn);
     }
     // Load persisted filters (status/search/type) from localStorage
-    /** @type {{ status: 'all'|'open'|'in_progress'|'closed'|'ready', search: string, type: string }} */
-    let persisted_filters = { status: 'all', search: '', type: '' };
+    /** @type {{ status: StatusFilter[], search: string, type: string }} */
+    let persisted_filters = { status: [], search: '', type: '' };
     try {
       const raw = window.localStorage.getItem('beads-ui.filters');
       if (raw) {
@@ -427,11 +393,9 @@ export function bootstrap(root_element) {
             parsed_type = first_valid;
           }
           persisted_filters = {
-            status: ['all', 'open', 'in_progress', 'closed', 'ready'].includes(
-              obj.status
-            )
-              ? obj.status
-              : 'all',
+            // Tolerates the legacy scalar form and drops unknown members; an
+            // entirely invalid value degrades to "all issues".
+            status: normalizeStatusFilters(obj.status),
             search: typeof obj.search === 'string' ? obj.search : '',
             type: parsed_type
           };
@@ -502,6 +466,18 @@ export function bootstrap(root_element) {
       view: last_view,
       board: persistedBoard
     });
+    let persisted_filters_json = JSON.stringify({
+      status: persisted_filters.status,
+      search: persisted_filters.search,
+      type: persisted_filters.type
+    });
+    let persisted_board_json = JSON.stringify({
+      closed_filter: persistedBoard.closed_filter
+    });
+    let persisted_board_filters_json = JSON.stringify(
+      store.getState().board.board_filters
+    );
+    let persisted_view_value = last_view;
     const router = createHashRouter(store);
     router.start();
     /**
@@ -717,24 +693,30 @@ export function bootstrap(root_element) {
     );
     // Persist filter and board preferences to localStorage
     store.subscribe((s) => {
-      const filter_data = {
-        status: s.filters.status,
+      const data = {
+        status: normalizeStatusFilters(s.filters.status),
         search: s.filters.search,
         type: typeof s.filters.type === 'string' ? s.filters.type : ''
       };
-      window.localStorage.setItem(
-        'beads-ui.filters',
-        JSON.stringify(filter_data)
-      );
-      window.localStorage.setItem(
-        'beads-ui.board',
-        JSON.stringify({ closed_filter: s.board.closed_filter })
-      );
-      if (s.board.board_filters) {
-        window.localStorage.setItem(
-          'beads-ui.board-filters',
-          JSON.stringify(s.board.board_filters)
-        );
+      const next_json = JSON.stringify(data);
+      if (next_json !== persisted_filters_json) {
+        window.localStorage.setItem('beads-ui.filters', next_json);
+        persisted_filters_json = next_json;
+      }
+    });
+    // Persist board preferences
+    store.subscribe((s) => {
+      const next_json = JSON.stringify({
+        closed_filter: s.board.closed_filter
+      });
+      if (next_json !== persisted_board_json) {
+        window.localStorage.setItem('beads-ui.board', next_json);
+        persisted_board_json = next_json;
+      }
+      const filters_json = JSON.stringify(s.board.board_filters);
+      if (filters_json !== persisted_board_filters_json) {
+        window.localStorage.setItem('beads-ui.board-filters', filters_json);
+        persisted_board_filters_json = filters_json;
       }
     });
     void issues_view.load();
@@ -753,12 +735,26 @@ export function bootstrap(root_element) {
       }
     });
 
+    /**
+     * Load comments outside the global activity indicator so a slow comments
+     * request does not keep the entire application in a loading state.
+     *
+     * @param {string} type
+     * @param {unknown} payload
+     */
+    const detail_transport = async (type, payload) => {
+      if (type === 'get-comments') {
+        return client.send(/** @type {MessageType} */ (type), payload);
+      }
+      return transport(type, payload);
+    };
+
     /** @type {ReturnType<typeof createDetailView> | null} */
     let detail = null;
     // Mount details into the dialog body only
     detail = createDetailView(
       dialog.getMount(),
-      transport,
+      detail_transport,
       (hash) => {
         const id = parseHash(hash);
         if (id) {
@@ -892,21 +888,28 @@ export function bootstrap(root_element) {
     /**
      * Compute subscription spec for Issues tab based on filters.
      *
-     * @param {{ status?: string }} filters
+     * A lone selection can be served by a dedicated server-side list; a union
+     * of several statuses cannot, so it falls back to all-issues and lets the
+     * list view narrow the rows client-side.
+     *
+     * @param {{ status?: unknown }} filters
      * @returns {{ type: string, params?: Record<string, string|number|boolean> }}
      */
     function computeIssuesSpec(filters) {
-      const st = String(filters?.status || 'all');
-      if (st === 'ready') {
-        return { type: 'ready-issues' };
+      const selected = normalizeStatusFilters(filters?.status);
+      if (selected.length === 1) {
+        if (selected[0] === 'ready') {
+          return { type: 'ready-issues' };
+        }
+        if (selected[0] === 'in_progress') {
+          return { type: 'in-progress-issues' };
+        }
+        if (selected[0] === 'closed') {
+          return { type: 'closed-issues' };
+        }
       }
-      if (st === 'in_progress') {
-        return { type: 'in-progress-issues' };
-      }
-      if (st === 'closed') {
-        return { type: 'closed-issues' };
-      }
-      // "all" and "open" map to all-issues; client filters apply locally
+      // No selection, a status without a dedicated list (e.g. open), or a
+      // union of several: fetch everything and filter locally.
       return { type: 'all-issues' };
     }
 
@@ -997,18 +1000,12 @@ export function bootstrap(root_element) {
       // Board tab subscribes to lists used by columns
       if (s.view === 'board') {
         for (const col of board_columns) {
-          const client_id = 'tab:board:' + col.id;
-          if (
-            !unsub_board_map.has(client_id) &&
-            !pending_subscriptions.has(client_id)
-          ) {
-            /** @type {{ type: string, params?: Record<string, string | number | boolean> }} */
-            const spec = { type: col.subscription };
-            if (col.params) {
-              spec.params =
-                /** @type {Record<string, string | number | boolean>} */ (
-                  col.params
-                );
+          for (const { client_id, spec } of columnSources(col)) {
+            if (
+              unsub_board_map.has(client_id) ||
+              pending_subscriptions.has(client_id)
+            ) {
+              continue;
             }
             try {
               sub_issue_stores.register(client_id, spec);
@@ -1074,7 +1071,10 @@ export function bootstrap(root_element) {
       if (!s.selected_id && s.view === 'board') {
         void board_view.load();
       }
-      window.localStorage.setItem('beads-ui.view', s.view);
+      if (s.view !== persisted_view_value) {
+        window.localStorage.setItem('beads-ui.view', s.view);
+        persisted_view_value = s.view;
+      }
     };
     store.subscribe(onRouteChange);
     // Ensure initial state is reflected (fixes reload on #/epics)

@@ -5,6 +5,28 @@ import { debug } from '../utils/logging.js';
 import { cmpPriorityThenCreated } from './sort.js';
 
 /**
+ * @param {object} obj
+ * @param {string} key
+ */
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+/**
+ * Defer listener work until the next paint when running in a browser. Tests and
+ * non-visual environments fall back to a microtask.
+ *
+ * @param {() => void} callback
+ */
+function scheduleStoreFlush(callback) {
+  if (typeof globalThis.requestAnimationFrame === 'function') {
+    globalThis.requestAnimationFrame(() => callback());
+    return;
+  }
+  queueMicrotask(callback);
+}
+
+/**
  * Per-subscription issue store. Holds full Issue objects and exposes a
  * deterministic, read-only snapshot for rendering. Applies snapshot/upsert/
  * delete messages in revision order and preserves object identity per id.
@@ -29,10 +51,19 @@ export function createSubscriptionIssueStore(id, options = {}) {
   const listeners = new Set();
   /** @type {boolean} */
   let is_disposed = false;
+  /** @type {boolean} */
+  let emit_scheduled = false;
+  /** @type {boolean} */
+  let ordered_dirty = false;
   /** @type {(a:any,b:any)=>number} */
   const sort = options.sort || cmpPriorityThenCreated;
 
-  function emit() {
+  function flushEmit() {
+    emit_scheduled = false;
+    if (is_disposed) {
+      return;
+    }
+    ensureOrdered();
     for (const fn of Array.from(listeners)) {
       try {
         fn();
@@ -42,8 +73,23 @@ export function createSubscriptionIssueStore(id, options = {}) {
     }
   }
 
+  function scheduleEmit() {
+    if (is_disposed || emit_scheduled) {
+      return;
+    }
+    emit_scheduled = true;
+    scheduleStoreFlush(flushEmit);
+  }
+
   function rebuildOrdered() {
     ordered = Array.from(items_by_id.values()).sort(sort);
+    ordered_dirty = false;
+  }
+
+  function ensureOrdered() {
+    if (ordered_dirty) {
+      rebuildOrdered();
+    }
   }
 
   /**
@@ -78,9 +124,9 @@ export function createSubscriptionIssueStore(id, options = {}) {
           items_by_id.set(it.id, it);
         }
       }
-      rebuildOrdered();
+      ordered_dirty = true;
       last_revision = rev;
-      emit();
+      scheduleEmit();
       return;
     }
     if (msg.type === 'upsert') {
@@ -98,6 +144,12 @@ export function createSubscriptionIssueStore(id, options = {}) {
             ? /** @type {number} */ (it.updated_at)
             : 0;
           if (prev_ts <= next_ts) {
+            const has_incoming_comments = hasOwn(it, 'comments');
+            const preserve_comments =
+              !has_incoming_comments && hasOwn(existing, 'comments');
+            const previous_comments = preserve_comments
+              ? existing.comments
+              : undefined;
             // Mutate existing object to preserve reference
             for (const k of Object.keys(existing)) {
               if (!(k in it)) {
@@ -109,22 +161,25 @@ export function createSubscriptionIssueStore(id, options = {}) {
               // @ts-ignore - dynamic assignment
               existing[k] = v;
             }
+            if (preserve_comments) {
+              existing.comments = previous_comments;
+            }
           } else {
             // stale by timestamp; ignore
           }
         }
-        rebuildOrdered();
+        ordered_dirty = true;
       }
       last_revision = rev;
-      emit();
+      scheduleEmit();
     } else if (msg.type === 'delete') {
       const rid = String(msg.issue_id || '');
       if (rid) {
         items_by_id.delete(rid);
-        rebuildOrdered();
+        ordered_dirty = true;
       }
       last_revision = rev;
-      emit();
+      scheduleEmit();
     }
   }
 
@@ -142,6 +197,7 @@ export function createSubscriptionIssueStore(id, options = {}) {
     applyPush,
     snapshot() {
       // Return as read-only view; callers must not mutate
+      ensureOrdered();
       return ordered;
     },
     size() {
@@ -155,8 +211,10 @@ export function createSubscriptionIssueStore(id, options = {}) {
     },
     dispose() {
       is_disposed = true;
+      emit_scheduled = false;
       items_by_id.clear();
       ordered = [];
+      ordered_dirty = false;
       listeners.clear();
       last_revision = 0;
     }
