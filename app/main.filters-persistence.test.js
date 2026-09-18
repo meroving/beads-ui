@@ -60,6 +60,42 @@ function selectedScopeLabel() {
 }
 
 /**
+ * Click the label checkbox with the given text in the labels dropdown.
+ *
+ * @param {string} label
+ */
+function toggleLabel(label) {
+  const dropdown = document.querySelectorAll('.filter-dropdown')[2];
+  /** @type {HTMLButtonElement} */ (
+    dropdown.querySelector('.filter-dropdown__trigger')
+  ).click();
+  const option = Array.from(
+    dropdown.querySelectorAll('.filter-dropdown__option')
+  ).find((opt) => (opt.textContent || '').trim() === label);
+  const checkbox = /** @type {HTMLInputElement} */ (
+    option?.querySelector('input[type="checkbox"]')
+  );
+  checkbox.click();
+}
+
+/**
+ * Labels of the checked options in the labels dropdown.
+ *
+ * @returns {string[]}
+ */
+function checkedLabels() {
+  const dropdown = document.querySelectorAll('.filter-dropdown')[2];
+  return Array.from(dropdown.querySelectorAll('.filter-dropdown__option'))
+    .filter((opt) => {
+      const box = /** @type {HTMLInputElement|null} */ (
+        opt.querySelector('input[type="checkbox"]')
+      );
+      return Boolean(box && box.checked);
+    })
+    .map((opt) => (opt.textContent || '').trim());
+}
+
+/**
  * The persisted status filter as stored in localStorage.
  *
  * @returns {unknown}
@@ -106,6 +142,7 @@ const ALL_ISSUES = [
     id: 'A-1',
     title: 'open one',
     status: 'open',
+    labels: ['ui'],
     created_at: 10,
     updated_at: 10
   },
@@ -120,6 +157,7 @@ const ALL_ISSUES = [
     id: 'C-1',
     title: 'in progress one',
     status: 'in_progress',
+    labels: ['backend'],
     created_at: 30,
     updated_at: 30
   }
@@ -297,6 +335,38 @@ describe('issues view — status filter persistence', () => {
     await reload();
 
     expect(checkedStatusLabels()).toEqual([]);
+    expect(rowIds()).toEqual(['A-1', 'B-1', 'C-1']);
+  });
+});
+
+describe('issues view — label filter persistence', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  test('restores a label selection after a reload', async () => {
+    await reload();
+    toggleLabel('ui');
+    await settle();
+
+    const raw = window.localStorage.getItem('beads-ui.filters');
+    expect(raw ? JSON.parse(raw).labels : undefined).toEqual(['ui']);
+
+    await reload();
+
+    expect(checkedLabels()).toEqual(['ui']);
+    expect(rowIds()).toEqual(['A-1']);
+  });
+
+  test('ignores an invalid stored label selection', async () => {
+    window.localStorage.setItem(
+      'beads-ui.filters',
+      JSON.stringify({ status: [], search: '', type: '', labels: 'ui' })
+    );
+
+    await reload();
+
+    expect(checkedLabels()).toEqual([]);
     expect(rowIds()).toEqual(['A-1', 'B-1', 'C-1']);
   });
 });

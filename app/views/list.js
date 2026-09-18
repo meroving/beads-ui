@@ -8,6 +8,11 @@ import { createListSelectors } from '../data/list-selectors.js';
 import { cmpClosedDesc } from '../data/sort.js';
 import { ISSUE_TYPES, typeLabel } from '../utils/issue-type.js';
 import { issueHashFor } from '../utils/issue-url.js';
+import {
+  collectLabelOptions,
+  normalizeLabelFilters,
+  sameLabelFilters
+} from '../utils/labels.js';
 import { debug } from '../utils/logging.js';
 import {
   FILTERABLE_STATUSES,
@@ -64,12 +69,14 @@ export function createListView(
   let issues_cache = [];
   /** @type {string[]} */
   let type_filters = [];
+  /** @type {string[]} */
+  let label_filters = [];
   /** @type {string | null} */
   let selected_id = store ? store.getState().selected_id : null;
   /** @type {null | (() => void)} */
   let unsubscribe = null;
-  let status_dropdown_open = false;
-  let type_dropdown_open = false;
+  /** @type {null | 'status' | 'type' | 'labels'} */
+  let open_dropdown = null;
 
   /**
    * Normalize legacy string filter to array format.
@@ -94,7 +101,8 @@ export function createListView(
     onUpdate: updateInline,
     requestRender: doRender,
     getSelectedId: () => selected_id,
-    row_class: 'issue-row'
+    row_class: 'issue-row',
+    show_labels: true
   });
 
   /**
@@ -177,26 +185,30 @@ export function createListView(
   };
 
   /**
-   * Toggle status dropdown open/closed.
+   * Toggle a label filter option. Issues carrying any selected label match.
    *
-   * @param {Event} e
+   * @param {string} label
    */
-  const toggleStatusDropdown = (e) => {
-    e.stopPropagation();
-    status_dropdown_open = !status_dropdown_open;
-    type_dropdown_open = false;
+  const toggleLabelFilter = (label) => {
+    label_filters = label_filters.includes(label)
+      ? label_filters.filter((l) => l !== label)
+      : [...label_filters, label];
+    log('label toggle %s -> %o', label, label_filters);
+    if (store) {
+      store.setState({ filters: { labels: label_filters } });
+    }
     doRender();
   };
 
   /**
-   * Toggle type dropdown open/closed.
+   * Toggle a filter dropdown open/closed; opening one closes the others.
    *
-   * @param {Event} e
+   * @param {'status' | 'type' | 'labels'} name
+   * @returns {(e: Event) => void}
    */
-  const toggleTypeDropdown = (e) => {
+  const toggleDropdown = (name) => (e) => {
     e.stopPropagation();
-    type_dropdown_open = !type_dropdown_open;
-    status_dropdown_open = false;
+    open_dropdown = open_dropdown === name ? null : name;
     doRender();
   };
 
@@ -221,6 +233,7 @@ export function createListView(
       status_filters = normalizeStatusFilters(s.filters.status);
       search_text = s.filters.search || '';
       type_filters = normalizeTypeFilter(s.filters.type);
+      label_filters = normalizeLabelFilters(s.filters.labels);
     }
   }
   // Initial values are reflected via bound `.value` in the template
@@ -257,6 +270,16 @@ export function createListView(
         type_filters.includes(String(it.issue_type || ''))
       );
     }
+    if (label_filters.length > 0) {
+      filtered = filtered.filter(
+        (it) =>
+          Array.isArray(it.labels) &&
+          it.labels.some((l) => label_filters.includes(l))
+      );
+    }
+    // Offer labels across the whole loaded scope, not just the visible rows,
+    // so narrowing by label never hides the other choices.
+    const label_options = collectLabelOptions(issues_cache, label_filters);
     // Sorting: closed list is a special case → sort by closed_at desc only
     if (
       stored_status_filters.length === 1 &&
@@ -267,10 +290,12 @@ export function createListView(
 
     return html`
       <div class="panel__header">
-        <div class="filter-dropdown ${status_dropdown_open ? 'is-open' : ''}">
+        <div
+          class="filter-dropdown ${open_dropdown === 'status' ? 'is-open' : ''}"
+        >
           <button
             class="filter-dropdown__trigger"
-            @click=${toggleStatusDropdown}
+            @click=${toggleDropdown('status')}
           >
             ${getDropdownDisplayText(status_filters, 'Status', statusLabel)}
             <span class="filter-dropdown__arrow">▾</span>
@@ -329,8 +354,13 @@ export function createListView(
             )}
           </div>
         </div>
-        <div class="filter-dropdown ${type_dropdown_open ? 'is-open' : ''}">
-          <button class="filter-dropdown__trigger" @click=${toggleTypeDropdown}>
+        <div
+          class="filter-dropdown ${open_dropdown === 'type' ? 'is-open' : ''}"
+        >
+          <button
+            class="filter-dropdown__trigger"
+            @click=${toggleDropdown('type')}
+          >
             ${getDropdownDisplayText(type_filters, 'Types', typeLabel)}
             <span class="filter-dropdown__arrow">▾</span>
           </button>
@@ -347,6 +377,36 @@ export function createListView(
                 </label>
               `
             )}
+          </div>
+        </div>
+        <div
+          class="filter-dropdown filter-dropdown--labels ${open_dropdown ===
+          'labels'
+            ? 'is-open'
+            : ''}"
+        >
+          <button
+            class="filter-dropdown__trigger"
+            @click=${toggleDropdown('labels')}
+          >
+            ${getDropdownDisplayText(label_filters, 'Labels', (l) => l)}
+            <span class="filter-dropdown__arrow">▾</span>
+          </button>
+          <div class="filter-dropdown__menu">
+            ${label_options.length === 0
+              ? html`<div class="filter-dropdown__empty">No labels</div>`
+              : label_options.map(
+                  (l) => html`
+                    <label class="filter-dropdown__option" title=${l}>
+                      <input
+                        type="checkbox"
+                        .checked=${label_filters.includes(l)}
+                        @change=${() => toggleLabelFilter(l)}
+                      />
+                      <span class="text-truncate">${l}</span>
+                    </label>
+                  `
+                )}
           </div>
         </div>
         <input
@@ -366,12 +426,13 @@ export function createListView(
                 class="table"
                 role="grid"
                 aria-rowcount=${String(filtered.length)}
-                aria-colcount="6"
+                aria-colcount="8"
               >
                 <colgroup>
                   <col style="width: 100px" />
                   <col style="width: 120px" />
                   <col />
+                  <col style="width: 180px" />
                   <col style="width: 120px" />
                   <col style="width: 160px" />
                   <col style="width: 130px" />
@@ -382,6 +443,7 @@ export function createListView(
                     <th role="columnheader">ID</th>
                     <th role="columnheader">Type</th>
                     <th role="columnheader">Title</th>
+                    <th role="columnheader">Labels</th>
                     <th role="columnheader">Status</th>
                     <th role="columnheader">Assignee</th>
                     <th role="columnheader">Priority</th>
@@ -588,9 +650,8 @@ export function createListView(
   const clickOutsideHandler = (e) => {
     const target = /** @type {HTMLElement|null} */ (e.target);
     if (target && !target.closest('.filter-dropdown')) {
-      if (status_dropdown_open || type_dropdown_open) {
-        status_dropdown_open = false;
-        type_dropdown_open = false;
+      if (open_dropdown !== null) {
+        open_dropdown = null;
         doRender();
       }
     }
@@ -625,6 +686,11 @@ export function createListView(
           JSON.stringify(next_type_arr) !== JSON.stringify(type_filters);
         if (type_changed) {
           type_filters = next_type_arr;
+          needs_render = true;
+        }
+        const next_labels = normalizeLabelFilters(s.filters.labels);
+        if (!sameLabelFilters(next_labels, label_filters)) {
+          label_filters = next_labels;
           needs_render = true;
         }
         if (needs_render) {

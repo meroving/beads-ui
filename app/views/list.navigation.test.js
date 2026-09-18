@@ -205,10 +205,10 @@ describe('views/list navigation', () => {
     );
     await view.load();
 
-    // Focus Status select (4th column) in first row
+    // Focus Status select (5th column) in first row
     const status_select = /** @type {HTMLSelectElement} */ (
       mount.querySelector(
-        'tbody tr.issue-row:nth-child(1) td:nth-child(4) select'
+        'tbody tr.issue-row:nth-child(1) td:nth-child(5) select'
       )
     );
     status_select.focus();

@@ -386,6 +386,9 @@ a {
 .panel__header {
   position: sticky;
   top: 0;
+  /* Filter menus open from here over the rows; keep them above positioned
+     cells (e.g. inline-editable titles) that come later in the DOM. */
+  z-index: 1;
   background: inherit;
   display: flex;
   align-items: center;
@@ -1131,6 +1134,23 @@ html[data-theme='dark'] {
 .filter-dropdown__divider {
   margin: 4px 0;
   border-top: 1px solid var(--border);
+}
+
+.filter-dropdown__empty {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Label lists can be long: scroll instead of running off the page */
+.filter-dropdown--labels .filter-dropdown__menu {
+  max-height: 320px;
+  max-width: 260px;
+  overflow-y: auto;
+}
+
+.filter-dropdown--labels .filter-dropdown__option .text-truncate {
+  min-width: 0;
 }
 
 /* Inline, minimal text input for table editing */
@@ -2290,6 +2310,23 @@ html[data-theme='dark'] {
 }
 .btn.danger:hover {
   background: color-mix(in srgb, var(--danger, #b00020) 85%, #000);
+}
+
+/* Labels column in the issues table */
+.label-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+.label-chips .badge + .badge {
+  margin-left: 0;
+}
+.label-chip {
+  max-width: 100%;
+  font-weight: 500;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border-color: color-mix(in srgb, var(--muted) 35%, transparent);
 }
 
 /* Dependency indicators column */

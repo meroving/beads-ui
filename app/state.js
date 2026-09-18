@@ -1,6 +1,7 @@
 /**
  * Minimal app state store with subscription.
  */
+import { normalizeLabelFilters, sameLabelFilters } from './utils/labels.js';
 import { debug } from './utils/logging.js';
 import { normalizeStatusFilters, sameStatusFilters } from './utils/status.js';
 
@@ -11,9 +12,10 @@ import { normalizeStatusFilters, sameStatusFilters } from './utils/status.js';
 /**
  * The status filter is a selection, not a single value: either exactly
  * `['ready']` or a subset of the stored statuses. An empty selection means
- * "all issues".
+ * "all issues". `labels` matches issues carrying any of the selected labels;
+ * an empty selection means no label filter.
  *
- * @typedef {{ status: StatusFilter[], search: string, type: string }} Filters
+ * @typedef {{ status: StatusFilter[], search: string, type: string, labels: string[] }} Filters
  */
 
 /**
@@ -56,7 +58,7 @@ const DEFAULT_BOARD_FILTERS = { parent: null, assignee: null, type: null };
 /**
  * Create a simple store for application state.
  *
- * @param {Partial<AppState>} [initial]
+ * @param {Partial<Omit<AppState, 'filters'>> & { filters?: Partial<Filters> }} [initial]
  * @returns {{ getState: () => AppState, setState: (patch: { selected_id?: string | null, view?: ViewName, filters?: Partial<Filters>, board?: Partial<BoardState & { board_filters?: Partial<BoardFilters> }>, workspace?: Partial<WorkspaceState> }) => void, subscribe: (fn: (s: AppState) => void) => () => void }}
  */
 export function createStore(initial = {}) {
@@ -69,7 +71,8 @@ export function createStore(initial = {}) {
       status: normalizeStatusFilters(initial.filters?.status),
       search: initial.filters?.search ?? '',
       type:
-        typeof initial.filters?.type === 'string' ? initial.filters?.type : ''
+        typeof initial.filters?.type === 'string' ? initial.filters?.type : '',
+      labels: normalizeLabelFilters(initial.filters?.labels)
     },
     board: {
       closed_filter:
@@ -122,7 +125,11 @@ export function createStore(initial = {}) {
           status:
             patch.filters && 'status' in patch.filters
               ? normalizeStatusFilters(patch.filters.status)
-              : state.filters.status
+              : state.filters.status,
+          labels:
+            patch.filters && 'labels' in patch.filters
+              ? normalizeLabelFilters(patch.filters.labels)
+              : state.filters.labels
         },
         board: {
           ...state.board,
@@ -162,6 +169,7 @@ export function createStore(initial = {}) {
         sameStatusFilters(next.filters.status, state.filters.status) &&
         next.filters.search === state.filters.search &&
         next.filters.type === state.filters.type &&
+        sameLabelFilters(next.filters.labels, state.filters.labels) &&
         next.board.closed_filter === state.board.closed_filter &&
         !board_filters_changed &&
         !workspace_changed

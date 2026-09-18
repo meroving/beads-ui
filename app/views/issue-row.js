@@ -13,19 +13,21 @@ import {
 } from '../utils/status.js';
 
 /**
- * @typedef {{ id: string, title?: string, status?: string, priority?: number, issue_type?: string, assignee?: string, dependency_count?: number, dependent_count?: number }} IssueRowData
+ * @typedef {{ id: string, title?: string, status?: string, priority?: number, issue_type?: string, assignee?: string, labels?: string[], dependency_count?: number, dependent_count?: number }} IssueRowData
  */
 
 /**
  * Create a reusable issue row renderer used by list and epics views.
  * Handles inline editing for title/assignee and selects for status/priority.
+ * With `show_labels`, a read-only Labels cell follows the Title cell.
  *
  * @param {{
  *   navigate: (id: string) => void,
  *   onUpdate: (id: string, patch: { title?: string, assignee?: string, status?: SettableStatus, priority?: number, issue_type?: string }) => Promise<void>,
  *   requestRender: () => void,
  *   getSelectedId?: () => string | null,
- *   row_class?: string
+ *   row_class?: string,
+ *   show_labels?: boolean
  * }} options
  * @returns {(it: IssueRowData) => import('lit-html').TemplateResult<1>}
  */
@@ -35,6 +37,7 @@ export function createIssueRowRenderer(options) {
   const request_render = options.requestRender;
   const get_selected_id = options.getSelectedId || (() => null);
   const row_class = options.row_class || 'issue-row';
+  const show_labels = options.show_labels === true;
 
   /** @type {Set<string>} */
   const editing = new Set();
@@ -144,6 +147,22 @@ export function createIssueRowRenderer(options) {
   /**
    * @param {IssueRowData} it
    */
+  function labelsCell(it) {
+    const labels = Array.isArray(it.labels) ? it.labels : [];
+    return html`<td role="gridcell" class="labels-col">
+      ${labels.length > 0
+        ? html`<span class="label-chips" title=${labels.join(', ')}
+            >${labels.map(
+              (l) => html`<span class="badge label-chip">${l}</span>`
+            )}</span
+          >`
+        : ''}
+    </td>`;
+  }
+
+  /**
+   * @param {IssueRowData} it
+   */
   function rowTemplate(it) {
     const cur_status = String(it.status || 'open');
     const cur_prio = String(it.priority ?? 2);
@@ -171,6 +190,7 @@ export function createIssueRowRenderer(options) {
         </select>
       </td>
       <td role="gridcell">${editableText(it.id, 'title', it.title || '')}</td>
+      ${show_labels ? labelsCell(it) : ''}
       <td role="gridcell">
         <select
           class="badge-select badge--status is-${cur_status}"
