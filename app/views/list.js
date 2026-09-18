@@ -6,7 +6,12 @@ import { html, render } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 import { createListSelectors } from '../data/list-selectors.js';
 import { cmpClosedDesc } from '../data/sort.js';
-import { ISSUE_TYPES, typeLabel } from '../utils/issue-type.js';
+import {
+  ISSUE_TYPES,
+  normalizeTypeFilters,
+  sameTypeFilters,
+  typeLabel
+} from '../utils/issue-type.js';
 import { issueHashFor } from '../utils/issue-url.js';
 import {
   collectLabelOptions,
@@ -77,18 +82,6 @@ export function createListView(
   let unsubscribe = null;
   /** @type {null | 'status' | 'type' | 'labels'} */
   let open_dropdown = null;
-
-  /**
-   * Normalize legacy string filter to array format.
-   *
-   * @param {string | string[] | undefined} val
-   * @returns {string[]}
-   */
-  function normalizeTypeFilter(val) {
-    if (Array.isArray(val)) return val;
-    if (typeof val === 'string' && val !== '') return [val];
-    return [];
-  }
 
   // Shared row renderer (used in template below)
   const row_renderer = createIssueRowRenderer({
@@ -232,7 +225,7 @@ export function createListView(
     if (s && s.filters && typeof s.filters === 'object') {
       status_filters = normalizeStatusFilters(s.filters.status);
       search_text = s.filters.search || '';
-      type_filters = normalizeTypeFilter(s.filters.type);
+      type_filters = normalizeTypeFilters(s.filters.type);
       label_filters = normalizeLabelFilters(s.filters.labels);
     }
   }
@@ -681,11 +674,9 @@ export function createListView(
           search_text = next_search;
           needs_render = true;
         }
-        const next_type_arr = normalizeTypeFilter(s.filters.type);
-        const type_changed =
-          JSON.stringify(next_type_arr) !== JSON.stringify(type_filters);
-        if (type_changed) {
-          type_filters = next_type_arr;
+        const next_types = normalizeTypeFilters(s.filters.type);
+        if (!sameTypeFilters(next_types, type_filters)) {
+          type_filters = next_types;
           needs_render = true;
         }
         const next_labels = normalizeLabelFilters(s.filters.labels);

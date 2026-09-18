@@ -27,10 +27,32 @@ describe('state store', () => {
 
   test('normalizes a legacy scalar status filter', () => {
     const store = createStore({
-      filters: { status: /** @type {any} */ ('open'), search: '', type: '' }
+      filters: { status: /** @type {any} */ ('open'), search: '', type: [] }
     });
 
     expect(store.getState().filters.status).toEqual(['open']);
+  });
+
+  test('normalizes a legacy scalar type filter to a selection', () => {
+    const store = createStore({
+      filters: { type: /** @type {any} */ ('bug') }
+    });
+
+    expect(store.getState().filters.type).toEqual(['bug']);
+  });
+
+  test('compares the type selection by value', () => {
+    const store = createStore();
+    const seen = [];
+    store.subscribe((s) => seen.push(s));
+
+    store.setState({ filters: { type: ['bug', 'task'] } });
+    // no-op: same members, fresh array in another order
+    store.setState({ filters: { type: ['task', 'bug'] } });
+    store.setState({ filters: { type: ['bug', 'bogus'] } });
+
+    expect(seen.length).toBe(2);
+    expect(store.getState().filters.type).toEqual(['bug']);
   });
 
   test('workspace change detected for database path changes', () => {

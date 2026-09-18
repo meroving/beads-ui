@@ -60,6 +60,52 @@ function selectedScopeLabel() {
 }
 
 /**
+ * Click the type checkbox with the given label in the types dropdown.
+ *
+ * @param {string} label - Visible label of the checkbox.
+ */
+function toggleType(label) {
+  const dropdown = document.querySelectorAll('.filter-dropdown')[1];
+  /** @type {HTMLButtonElement} */ (
+    dropdown.querySelector('.filter-dropdown__trigger')
+  ).click();
+  const option = Array.from(
+    dropdown.querySelectorAll('.filter-dropdown__option')
+  ).find((opt) => (opt.textContent || '').trim() === label);
+  const checkbox = /** @type {HTMLInputElement} */ (
+    option?.querySelector('input[type="checkbox"]')
+  );
+  checkbox.click();
+}
+
+/**
+ * Labels of the checked options in the types dropdown.
+ *
+ * @returns {string[]}
+ */
+function checkedTypeLabels() {
+  const dropdown = document.querySelectorAll('.filter-dropdown')[1];
+  return Array.from(dropdown.querySelectorAll('.filter-dropdown__option'))
+    .filter((opt) => {
+      const box = /** @type {HTMLInputElement|null} */ (
+        opt.querySelector('input[type="checkbox"]')
+      );
+      return Boolean(box && box.checked);
+    })
+    .map((opt) => (opt.textContent || '').trim());
+}
+
+/**
+ * The persisted type filter as stored in localStorage.
+ *
+ * @returns {unknown}
+ */
+function storedTypeFilter() {
+  const raw = window.localStorage.getItem('beads-ui.filters');
+  return raw ? JSON.parse(raw).type : undefined;
+}
+
+/**
  * Click the label checkbox with the given text in the labels dropdown.
  *
  * @param {string} label
@@ -142,6 +188,7 @@ const ALL_ISSUES = [
     id: 'A-1',
     title: 'open one',
     status: 'open',
+    issue_type: 'bug',
     labels: ['ui'],
     created_at: 10,
     updated_at: 10
@@ -150,6 +197,7 @@ const ALL_ISSUES = [
     id: 'B-1',
     title: 'blocked one',
     status: 'blocked',
+    issue_type: 'feature',
     created_at: 20,
     updated_at: 20
   },
@@ -157,6 +205,7 @@ const ALL_ISSUES = [
     id: 'C-1',
     title: 'in progress one',
     status: 'in_progress',
+    issue_type: 'task',
     labels: ['backend'],
     created_at: 30,
     updated_at: 30
@@ -368,5 +417,66 @@ describe('issues view — label filter persistence', () => {
 
     expect(checkedLabels()).toEqual([]);
     expect(rowIds()).toEqual(['A-1', 'B-1', 'C-1']);
+  });
+});
+
+describe('issues view — type filter persistence', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  test('restores a multi-type selection after a reload', async () => {
+    await reload();
+    toggleType('Bug');
+    await settle();
+    toggleType('Task');
+    await settle();
+
+    expect(storedTypeFilter()).toEqual(['bug', 'task']);
+
+    await reload();
+
+    expect(checkedTypeLabels()).toEqual(['Bug', 'Task']);
+    expect(rowIds()).toEqual(['A-1', 'C-1']);
+  });
+
+  test('migrates a legacy scalar type to an array', async () => {
+    window.localStorage.setItem(
+      'beads-ui.filters',
+      JSON.stringify({ status: [], search: '', type: 'feature' })
+    );
+
+    await reload();
+
+    expect(checkedTypeLabels()).toEqual(['Feature']);
+    expect(rowIds()).toEqual(['B-1']);
+  });
+
+  test('migrates a legacy types array, dropping unknown types', async () => {
+    window.localStorage.setItem(
+      'beads-ui.filters',
+      JSON.stringify({
+        status: [],
+        search: '',
+        types: ['bogus', 'bug', 'task']
+      })
+    );
+
+    await reload();
+
+    expect(checkedTypeLabels()).toEqual(['Bug', 'Task']);
+    expect(rowIds()).toEqual(['A-1', 'C-1']);
+  });
+
+  test('restores a Decision selection', async () => {
+    window.localStorage.setItem(
+      'beads-ui.filters',
+      JSON.stringify({ status: [], search: '', type: ['decision'] })
+    );
+
+    await reload();
+
+    expect(checkedTypeLabels()).toEqual(['Decision']);
+    expect(rowIds()).toEqual([]);
   });
 });

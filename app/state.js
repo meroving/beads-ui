@@ -1,6 +1,7 @@
 /**
  * Minimal app state store with subscription.
  */
+import { normalizeTypeFilters, sameTypeFilters } from './utils/issue-type.js';
 import { normalizeLabelFilters, sameLabelFilters } from './utils/labels.js';
 import { debug } from './utils/logging.js';
 import { normalizeStatusFilters, sameStatusFilters } from './utils/status.js';
@@ -12,10 +13,11 @@ import { normalizeStatusFilters, sameStatusFilters } from './utils/status.js';
 /**
  * The status filter is a selection, not a single value: either exactly
  * `['ready']` or a subset of the stored statuses. An empty selection means
- * "all issues". `labels` matches issues carrying any of the selected labels;
- * an empty selection means no label filter.
+ * "all issues". `type` and `labels` are selections too: an issue matches when
+ * its type is one of the selected types and it carries any selected label; an
+ * empty selection means no filter.
  *
- * @typedef {{ status: StatusFilter[], search: string, type: string, labels: string[] }} Filters
+ * @typedef {{ status: StatusFilter[], search: string, type: string[], labels: string[] }} Filters
  */
 
 /**
@@ -70,8 +72,7 @@ export function createStore(initial = {}) {
     filters: {
       status: normalizeStatusFilters(initial.filters?.status),
       search: initial.filters?.search ?? '',
-      type:
-        typeof initial.filters?.type === 'string' ? initial.filters?.type : '',
+      type: normalizeTypeFilters(initial.filters?.type),
       labels: normalizeLabelFilters(initial.filters?.labels)
     },
     board: {
@@ -126,6 +127,10 @@ export function createStore(initial = {}) {
             patch.filters && 'status' in patch.filters
               ? normalizeStatusFilters(patch.filters.status)
               : state.filters.status,
+          type:
+            patch.filters && 'type' in patch.filters
+              ? normalizeTypeFilters(patch.filters.type)
+              : state.filters.type,
           labels:
             patch.filters && 'labels' in patch.filters
               ? normalizeLabelFilters(patch.filters.labels)
@@ -168,7 +173,7 @@ export function createStore(initial = {}) {
         next.view === state.view &&
         sameStatusFilters(next.filters.status, state.filters.status) &&
         next.filters.search === state.filters.search &&
-        next.filters.type === state.filters.type &&
+        sameTypeFilters(next.filters.type, state.filters.type) &&
         sameLabelFilters(next.filters.labels, state.filters.labels) &&
         next.board.closed_filter === state.board.closed_filter &&
         !board_filters_changed &&

@@ -16,6 +16,7 @@ import { createSubscriptionStore } from './data/subscriptions-store.js';
 import { createHashRouter, parseHash, parseView } from './router.js';
 import { createStore } from './state.js';
 import { createActivityIndicator } from './utils/activity-indicator.js';
+import { normalizeTypeFilters } from './utils/issue-type.js';
 import { normalizeLabelFilters } from './utils/labels.js';
 import { debug } from './utils/logging.js';
 import { normalizeStatusFilters } from './utils/status.js';
@@ -371,28 +372,20 @@ export function bootstrap(root_element) {
       client.onConnection(onConn);
     }
     // Load persisted filters (status/search/type/labels) from localStorage
-    /** @type {{ status: StatusFilter[], search: string, type: string, labels: string[] }} */
-    let persisted_filters = { status: [], search: '', type: '', labels: [] };
+    /** @type {{ status: StatusFilter[], search: string, type: string[], labels: string[] }} */
+    let persisted_filters = { status: [], search: '', type: [], labels: [] };
     try {
       const raw = window.localStorage.getItem('beads-ui.filters');
       if (raw) {
         const obj = JSON.parse(raw);
         if (obj && typeof obj === 'object') {
-          const ALLOWED = ['bug', 'feature', 'task', 'epic', 'chore'];
-          let parsed_type = '';
-          if (typeof obj.type === 'string' && ALLOWED.includes(obj.type)) {
-            parsed_type = obj.type;
-          } else if (Array.isArray(obj.types)) {
-            // Backwards compatibility: pick first valid from previous array format
-            let first_valid = '';
-            for (const it of obj.types) {
-              if (ALLOWED.includes(String(it))) {
-                first_valid = /** @type {string} */ (it);
-                break;
-              }
-            }
-            parsed_type = first_valid;
-          }
+          // `type` is stored as an array; older builds stored a scalar `type`
+          // or, before that, a `types` array. Migrate either to the array.
+          const stored_type = normalizeTypeFilters(obj.type);
+          const parsed_type =
+            stored_type.length > 0
+              ? stored_type
+              : normalizeTypeFilters(obj.types);
           persisted_filters = {
             // Tolerates the legacy scalar form and drops unknown members; an
             // entirely invalid value degrades to "all issues".
@@ -699,7 +692,7 @@ export function bootstrap(root_element) {
       const data = {
         status: normalizeStatusFilters(s.filters.status),
         search: s.filters.search,
-        type: typeof s.filters.type === 'string' ? s.filters.type : '',
+        type: normalizeTypeFilters(s.filters.type),
         labels: normalizeLabelFilters(s.filters.labels)
       };
       const next_json = JSON.stringify(data);
