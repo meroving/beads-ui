@@ -1,10 +1,12 @@
 /**
  * @import { Status } from '../protocol.js'
  * @import { StatusFilter } from '../utils/status.js'
+ * @import { ListSort, ListSortDir, ListSortKey } from '../data/list-sort.js'
  */
-import { html, render } from 'lit-html';
+import { html, nothing, render, svg } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 import { createListSelectors } from '../data/list-selectors.js';
+import { normalizeListSort, sortIssuesBy } from '../data/list-sort.js';
 import { cmpClosedDesc } from '../data/sort.js';
 import {
   ISSUE_TYPES,
@@ -28,6 +30,59 @@ import {
 import { createIssueRowRenderer } from './issue-row.js';
 
 // List view implementation; requires a transport send function.
+
+const SORT_STORAGE_KEY = 'beads-ui.list-sort';
+
+/**
+ * Table columns in render order; every column can be sorted.
+ *
+ * @type {ReadonlyArray<{ key: ListSortKey, label: string, width?: string }>}
+ */
+const COLUMNS = [
+  { key: 'id', label: 'ID', width: '100px' },
+  { key: 'type', label: 'Type', width: '120px' },
+  { key: 'title', label: 'Title' },
+  { key: 'labels', label: 'Labels', width: '180px' },
+  { key: 'status', label: 'Status', width: '120px' },
+  { key: 'assignee', label: 'Assignee', width: '160px' },
+  { key: 'priority', label: 'Priority', width: '130px' },
+  { key: 'deps', label: 'Deps', width: '96px' }
+];
+
+/**
+ * Order the list shows when no column sort is chosen, except that a
+ * closed-only list defaults to most recently closed first.
+ *
+ * @type {ListSort}
+ */
+const DEFAULT_SORT = { key: 'priority', dir: 'asc' };
+
+/**
+ * @returns {ListSort | null}
+ */
+function loadSort() {
+  try {
+    const raw = window.localStorage.getItem(SORT_STORAGE_KEY);
+    return raw ? normalizeListSort(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {ListSort | null} sort
+ */
+function persistSort(sort) {
+  try {
+    if (sort) {
+      window.localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
+    } else {
+      window.localStorage.removeItem(SORT_STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
 
 /**
  * @typedef {{ id: string, title?: string, status?: Status, priority?: number, issue_type?: string, assignee?: string, labels?: string[] }} Issue
@@ -82,6 +137,12 @@ export function createListView(
   let unsubscribe = null;
   /** @type {null | 'status' | 'type' | 'labels'} */
   let open_dropdown = null;
+  /**
+   * Column sort chosen in the header; null keeps the default order.
+   *
+   * @type {ListSort | null}
+   */
+  let sort = loadSort();
 
   // Shared row renderer (used in template below)
   const row_renderer = createIssueRowRenderer({
@@ -206,6 +267,63 @@ export function createListView(
   };
 
   /**
+   * Pick a column sort. Choosing the order already shown restores the default
+   * order, so the active arrow doubles as "clear sort".
+   *
+   * @param {ListSort | null} effective - Order currently shown.
+   * @param {ListSortKey} key
+   * @param {ListSortDir} dir
+   */
+  const chooseSort = (effective, key, dir) => {
+    const is_current = effective?.key === key && effective.dir === dir;
+    sort = is_current ? null : { key, dir };
+    log('sort %o', sort);
+    persistSort(sort);
+    doRender();
+  };
+
+  /**
+   * Header cell with the column label and its ascending/descending buttons.
+   *
+   * @param {{ key: ListSortKey, label: string }} col
+   * @param {ListSort | null} effective - Order currently shown.
+   */
+  function headerCell(col, effective) {
+    const active_dir = effective?.key === col.key ? effective.dir : null;
+    /** @param {ListSortDir} dir */
+    const button = (dir) => {
+      const is_active = active_dir === dir;
+      const word = dir === 'asc' ? 'ascending' : 'descending';
+      return html`<button
+        type="button"
+        class="sort-btn ${is_active ? 'is-active' : ''}"
+        aria-label="Sort by ${col.label} ${word}"
+        aria-pressed=${is_active ? 'true' : 'false'}
+        title=${is_active
+          ? 'Restore default order'
+          : `Sort by ${col.label} ${word}`}
+        @click=${() => chooseSort(effective, col.key, dir)}
+      >
+        ${svg`<svg viewBox="0 0 8 5" aria-hidden="true" focusable="false"><path d=${dir === 'asc' ? 'M4 0 8 5H0z' : 'M4 5 0 0h8z'} /></svg>`}
+      </button>`;
+    };
+    return html`<th
+      role="columnheader"
+      class="sortable ${active_dir ? 'is-sorted' : ''}"
+      aria-sort=${active_dir === 'asc'
+        ? 'ascending'
+        : active_dir === 'desc'
+          ? 'descending'
+          : nothing}
+    >
+      <span class="sortable__inner"
+        ><span class="sortable__label">${col.label}</span
+        ><span class="sort-btns">${button('asc')}${button('desc')}</span></span
+      >
+    </th>`;
+  }
+
+  /**
    * Get display text for dropdown trigger.
    *
    * @param {string[]} selected
@@ -273,13 +391,17 @@ export function createListView(
     // Offer labels across the whole loaded scope, not just the visible rows,
     // so narrowing by label never hides the other choices.
     const label_options = collectLabelOptions(issues_cache, label_filters);
-    // Sorting: closed list is a special case → sort by closed_at desc only
-    if (
+    // Sorting: rows arrive in the default priority order; a closed-only list
+    // defaults to closed_at desc instead. A chosen column sort overrides both.
+    const closed_only =
       stored_status_filters.length === 1 &&
-      stored_status_filters[0] === 'closed'
-    ) {
+      stored_status_filters[0] === 'closed';
+    if (sort) {
+      filtered = sortIssuesBy(filtered, sort);
+    } else if (closed_only) {
       filtered = filtered.slice().sort(cmpClosedDesc);
     }
+    const effective_sort = sort || (closed_only ? null : DEFAULT_SORT);
 
     return html`
       <div class="panel__header">
@@ -419,28 +541,19 @@ export function createListView(
                 class="table"
                 role="grid"
                 aria-rowcount=${String(filtered.length)}
-                aria-colcount="8"
+                aria-colcount=${String(COLUMNS.length)}
               >
                 <colgroup>
-                  <col style="width: 100px" />
-                  <col style="width: 120px" />
-                  <col />
-                  <col style="width: 180px" />
-                  <col style="width: 120px" />
-                  <col style="width: 160px" />
-                  <col style="width: 130px" />
-                  <col style="width: 80px" />
+                  ${COLUMNS.map(
+                    (col) =>
+                      html`<col
+                        style=${col.width ? `width: ${col.width}` : nothing}
+                      />`
+                  )}
                 </colgroup>
                 <thead>
                   <tr role="row">
-                    <th role="columnheader">ID</th>
-                    <th role="columnheader">Type</th>
-                    <th role="columnheader">Title</th>
-                    <th role="columnheader">Labels</th>
-                    <th role="columnheader">Status</th>
-                    <th role="columnheader">Assignee</th>
-                    <th role="columnheader">Priority</th>
-                    <th role="columnheader">Deps</th>
+                    ${COLUMNS.map((col) => headerCell(col, effective_sort))}
                   </tr>
                 </thead>
                 <tbody role="rowgroup">
@@ -626,6 +739,12 @@ export function createListView(
       selected_id = set;
       doRender();
     } else if (ev.key === 'Enter') {
+      // Enter on a button (sort arrows, filter triggers) activates the button
+      // rather than opening the selected issue.
+      const tgt = /** @type {HTMLElement} */ (ev.target);
+      if (tgt !== mount_element && tgt.closest?.('button')) {
+        return;
+      }
       ev.preventDefault();
       const current = items[idx];
       const id = current ? current.getAttribute('data-issue-id') : '';

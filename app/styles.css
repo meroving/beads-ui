@@ -1365,6 +1365,59 @@ input.inline-edit:focus {
     color: var(--muted);
     font-weight: 600;
   }
+  th.is-sorted {
+    color: var(--fg);
+  }
+}
+
+/* Sortable column headers: the label followed by stacked asc/desc arrows */
+.sortable__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  vertical-align: middle;
+}
+.sortable__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sort-btns {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  gap: 1px;
+}
+.sort-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0.4;
+  cursor: pointer;
+
+  svg {
+    display: block;
+    width: 8px;
+    height: 5px;
+    fill: currentColor;
+  }
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    background: color-mix(in srgb, var(--muted) 15%, transparent);
+  }
+  &.is-active {
+    opacity: 1;
+    color: var(--link);
+  }
 }
 .epic-row:hover {
   background: color-mix(in srgb, var(--control-bg) 55%, transparent);
