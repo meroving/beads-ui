@@ -336,6 +336,37 @@ export function createDetailView(
   }
 
   /**
+   * Adopt the issue a mutation replied with. The reply can land after the
+   * subscription has already pushed the same revision, and after the dialog
+   * moved to another issue, so anything that is not the open issue is
+   * ignored. The reply comes from a plain `bd show`, which never carries
+   * `dependents` or the separately loaded `comments`; keep those.
+   *
+   * @param {unknown} updated
+   * @returns {boolean} Whether `current` was replaced.
+   */
+  function applyMutationResult(updated) {
+    const issue = /** @type {IssueDetail | null} */ (
+      updated && typeof updated === 'object' && !Array.isArray(updated)
+        ? updated
+        : null
+    );
+    if (!current || !issue || String(issue.id) !== String(current.id)) {
+      return false;
+    }
+    /** @type {IssueDetail} */
+    const next = { ...issue };
+    if (!('dependents' in next) && current.dependents) {
+      next.dependents = current.dependents;
+    }
+    if (!('comments' in next) && current.comments) {
+      next.comments = current.comments;
+    }
+    current = next;
+    return true;
+  }
+
+  /**
    * @param {IssueDetail} issue
    */
   function issueCommentCount(issue) {
@@ -525,8 +556,7 @@ export function createDetailView(
         field: 'title',
         value: next
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         edit_title = false;
         doRender();
       }
@@ -587,8 +617,7 @@ export function createDetailView(
         id: current.id,
         assignee: next
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         edit_assignee = false;
         doRender();
       }
@@ -640,8 +669,7 @@ export function createDetailView(
         id: current.id,
         label: text
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         new_label_text = '';
         doRender();
       }
@@ -666,8 +694,7 @@ export function createDetailView(
         id: current.id,
         label
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         doRender();
       }
     } catch (err) {
@@ -700,8 +727,7 @@ export function createDetailView(
         id: current.id,
         status: next
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         doRender();
       }
     } catch (err) {
@@ -736,8 +762,7 @@ export function createDetailView(
         id: current.id,
         priority: next
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         doRender();
       }
     } catch (err) {
@@ -795,8 +820,7 @@ export function createDetailView(
         field: 'description',
         value: next
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         edit_desc = false;
         doRender();
       }
@@ -873,8 +897,7 @@ export function createDetailView(
         field: 'design',
         value: next
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         edit_design = false;
         doRender();
       }
@@ -941,8 +964,7 @@ export function createDetailView(
         field: 'notes',
         value: next
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         edit_notes = false;
         doRender();
       }
@@ -1008,8 +1030,7 @@ export function createDetailView(
         field: 'acceptance',
         value: next
       });
-      if (updated && typeof updated === 'object') {
-        current = /** @type {IssueDetail} */ (updated);
+      if (applyMutationResult(updated)) {
         edit_accept = false;
         doRender();
       }
@@ -1624,8 +1645,7 @@ export function createDetailView(
             b: did,
             view_id: current.id
           });
-          if (updated && typeof updated === 'object') {
-            current = /** @type {IssueDetail} */ (updated);
+          if (applyMutationResult(updated)) {
             doRender();
           }
         } else {
@@ -1634,8 +1654,7 @@ export function createDetailView(
             b: current.id,
             view_id: current.id
           });
-          if (updated && typeof updated === 'object') {
-            current = /** @type {IssueDetail} */ (updated);
+          if (applyMutationResult(updated)) {
             doRender();
           }
         }
@@ -1687,8 +1706,7 @@ export function createDetailView(
             b: target,
             view_id: current.id
           });
-          if (updated && typeof updated === 'object') {
-            current = /** @type {IssueDetail} */ (updated);
+          if (applyMutationResult(updated)) {
             doRender();
           }
         } else {
@@ -1697,8 +1715,7 @@ export function createDetailView(
             b: current.id,
             view_id: current.id
           });
-          if (updated && typeof updated === 'object') {
-            current = /** @type {IssueDetail} */ (updated);
+          if (applyMutationResult(updated)) {
             doRender();
           }
         }

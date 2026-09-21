@@ -703,6 +703,17 @@ export function attachWsServer(http_server, options = {}) {
 }
 
 /**
+ * Mutation replies carry the updated issue, but `bd show --json` prints a
+ * one-element array.
+ *
+ * @param {unknown} value - Parsed `bd show --json` output.
+ * @returns {unknown}
+ */
+function shownIssue(value) {
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+/**
  * Handle an incoming message frame and respond to the same socket.
  *
  * @param {WebSocket} ws
@@ -930,7 +941,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     try {
       triggerMutationRefreshOnce();
     } catch {
@@ -978,7 +989,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     // After mutation, refresh active subscriptions once (watcher or timeout)
     try {
       triggerMutationRefreshOnce();
@@ -1028,7 +1039,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     try {
       triggerMutationRefreshOnce();
     } catch {
@@ -1081,7 +1092,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     try {
       triggerMutationRefreshOnce();
     } catch {
@@ -1146,7 +1157,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     try {
       triggerMutationRefreshOnce();
     } catch {
@@ -1245,7 +1256,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     try {
       triggerMutationRefreshOnce();
     } catch {
@@ -1290,7 +1301,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     try {
       triggerMutationRefreshOnce();
     } catch {
@@ -1334,7 +1345,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     try {
       triggerMutationRefreshOnce();
     } catch {
@@ -1378,7 +1389,7 @@ export async function handleMessage(ws, data) {
       );
       return;
     }
-    ws.send(JSON.stringify(makeOk(req, shown.stdoutJson)));
+    ws.send(JSON.stringify(makeOk(req, shownIssue(shown.stdoutJson))));
     try {
       triggerMutationRefreshOnce();
     } catch {

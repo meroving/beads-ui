@@ -46,6 +46,33 @@ describe('ws mutation handlers', () => {
     expect(obj.payload.status).toBe('in_progress');
   });
 
+  test('update-status replies with the issue, not bd show array output', async () => {
+    const mRun = /** @type {import('vitest').Mock} */ (runBd);
+    const mJson = /** @type {import('vitest').Mock} */ (runBdJson);
+    mRun.mockResolvedValueOnce({ code: 0, stdout: '', stderr: '' });
+    mJson.mockResolvedValueOnce({
+      code: 0,
+      stdoutJson: [{ id: 'UI-7', title: 'T', status: 'in_progress' }]
+    });
+    const ws = makeStubSocket();
+    const req = {
+      id: 'r1a',
+      type: 'update-status',
+      payload: { id: 'UI-7', status: 'in_progress' }
+    };
+    await handleMessage(
+      /** @type {any} */ (ws),
+      Buffer.from(JSON.stringify(req))
+    );
+    const obj = JSON.parse(ws.sent[ws.sent.length - 1]);
+    expect(obj.ok).toBe(true);
+    expect(obj.payload).toEqual({
+      id: 'UI-7',
+      title: 'T',
+      status: 'in_progress'
+    });
+  });
+
   test('update-status accepts blocked and deferred', async () => {
     for (const status of ['blocked', 'deferred']) {
       const mRun = /** @type {import('vitest').Mock} */ (runBd);
