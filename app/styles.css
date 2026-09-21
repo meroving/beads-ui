@@ -1258,7 +1258,8 @@ input.inline-edit:focus {
 /* Spacing for acceptance and notes sections in details */
 #detail-root .acceptance,
 #detail-root .design,
-#detail-root .notes {
+#detail-root .notes,
+#detail-root .dependents {
   margin-top: 32px;
 }
 /* Keep editor font sizes consistent with read mode */
@@ -2062,7 +2063,8 @@ html[data-theme='dark'] {
 }
 
 /* Sidebar control aesthetics */
-#detail-root .props-card input[type='text'] {
+#detail-root .props-card input[type='text'],
+#detail-root .dependents__add input[type='text'] {
   border: 1px solid var(--control-border);
   outline: none;
   border-radius: 4px;
@@ -2141,6 +2143,37 @@ html[data-theme='dark'] {
   .detail-layout {
     grid-template-columns: 1fr;
   }
+}
+
+/* Dependents section (main column, below the description) */
+.dependents ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+.dependents ul li {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  cursor: pointer;
+}
+.dependents ul li:hover {
+  background: color-mix(in srgb, var(--control-bg) 55%, transparent);
+}
+.dependents > .muted {
+  margin-top: 8px;
+}
+.dependents__add {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  max-width: 360px;
+}
+.dependents__add input {
+  flex: 1;
 }
 
 /* Comments section */

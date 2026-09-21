@@ -60,10 +60,11 @@ describe('views/detail', () => {
     const hrefs = Array.from(links)
       .map((a) => a.dataset.href)
       .filter(Boolean);
+    // Dependents render in the main column, ahead of the sidebar Dependencies
     expect(hrefs).toEqual([
+      '#/issues?issue=UI-34',
       '#/issues?issue=UI-25',
-      '#/issues?issue=UI-27',
-      '#/issues?issue=UI-34'
+      '#/issues?issue=UI-27'
     ]);
 
     // No description textarea in read mode (only comment input textarea should exist)
@@ -74,7 +75,7 @@ describe('views/detail', () => {
 
     // Simulate clicking the first internal link, ensure navigate_fn is used
     links[0].click();
-    expect(navigations[navigations.length - 1]).toBe('#/issues?issue=UI-25');
+    expect(navigations[navigations.length - 1]).toBe('#/issues?issue=UI-34');
   });
 
   test('renders type in Properties sidebar', async () => {

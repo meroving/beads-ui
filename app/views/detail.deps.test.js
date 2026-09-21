@@ -115,4 +115,115 @@ describe('views/detail dependencies', () => {
     const calls = send.mock.calls.map((c) => c[0]);
     expect(calls.includes('dep-add')).toBe(false);
   });
+
+  test('renders Dependents in the main column below the description', async () => {
+    const mount = setupDom();
+    const issue = {
+      id: 'UI-40',
+      title: 'Parent',
+      description: 'Body text',
+      dependencies: [{ id: 'UI-1', title: 'Blocker' }],
+      dependents: [
+        {
+          id: 'UI-41',
+          title: 'Child',
+          status: 'in_progress',
+          issue_type: 'task'
+        }
+      ]
+    };
+    const stores = {
+      /** @param {string} id */
+      snapshotFor(id) {
+        return id === 'detail:UI-40' ? [issue] : [];
+      },
+      subscribe() {
+        return () => {};
+      }
+    };
+    const view = createDetailView(mount, vi.fn(), undefined, stores);
+    await view.load('UI-40');
+
+    const section = mount.querySelector('.detail-main .dependents');
+    expect(section).toBeTruthy();
+    expect(mount.querySelector('.detail-side .dependents')).toBeNull();
+    expect(
+      mount.querySelector('.detail-side [data-testid="add-dependent"]')
+    ).toBeNull();
+    expect(
+      mount.querySelector('.detail-side [data-testid="add-dependency"]')
+    ).toBeTruthy();
+
+    const children = Array.from(
+      /** @type {HTMLElement} */ (mount.querySelector('.detail-main')).children
+    );
+    const desc_idx = children.findIndex(
+      (el) => el.getAttribute('aria-label') === 'Edit description'
+    );
+    const deps_idx = children.indexOf(/** @type {Element} */ (section));
+    const comments_idx = children.findIndex((el) =>
+      el.classList.contains('comments')
+    );
+    expect(desc_idx).toBeGreaterThanOrEqual(0);
+    expect(deps_idx).toBe(desc_idx + 1);
+    expect(deps_idx).toBeLessThan(comments_idx);
+
+    const row = section?.querySelector('li');
+    expect(row?.textContent).toContain('UI-41');
+    expect(row?.textContent).toContain('Child');
+    expect(row?.querySelector('.status-badge.is-in_progress')).toBeTruthy();
+    expect(
+      section?.querySelector('[data-testid="add-dependent"]')
+    ).toBeTruthy();
+  });
+
+  test('shows an empty state when there are no dependents', async () => {
+    const mount = setupDom();
+    const issue = { id: 'UI-50', title: 'Lonely', dependents: [] };
+    const stores = {
+      /** @param {string} id */
+      snapshotFor(id) {
+        return id === 'detail:UI-50' ? [issue] : [];
+      },
+      subscribe() {
+        return () => {};
+      }
+    };
+    const view = createDetailView(mount, vi.fn(), undefined, stores);
+    await view.load('UI-50');
+
+    const section = mount.querySelector('.detail-main .dependents');
+    expect(section?.querySelector('ul')).toBeNull();
+    expect(section?.textContent).toContain('No dependents');
+  });
+
+  test('adds a dependent from the main column', async () => {
+    const mount = setupDom();
+    const issue = { id: 'UI-60', title: 'Epic', dependents: [] };
+    const stores = {
+      /** @param {string} id */
+      snapshotFor(id) {
+        return id === 'detail:UI-60' ? [issue] : [];
+      },
+      subscribe() {
+        return () => {};
+      }
+    };
+    const send = vi.fn(async () => issue);
+    const view = createDetailView(mount, send, undefined, stores);
+    await view.load('UI-60');
+
+    const input = /** @type {HTMLInputElement} */ (
+      mount.querySelector('.detail-main [data-testid="add-dependent"]')
+    );
+    input.value = 'UI-61';
+    input.nextElementSibling?.dispatchEvent(new window.Event('click'));
+    await Promise.resolve();
+
+    expect(send).toHaveBeenCalledWith('dep-add', {
+      a: 'UI-61',
+      b: 'UI-60',
+      view_id: 'UI-60'
+    });
+  });
 });

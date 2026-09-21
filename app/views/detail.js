@@ -6,6 +6,7 @@ import { debug } from '../utils/logging.js';
 import { renderMarkdown } from '../utils/markdown.js';
 import { emojiForPriority } from '../utils/priority-badge.js';
 import { priority_levels } from '../utils/priority.js';
+import { createStatusBadge } from '../utils/status-badge.js';
 import {
   isSettableStatus,
   statusLabel,
@@ -1145,6 +1146,50 @@ export function createDetailView(
   }
 
   /**
+   * Dependents list for the main column, rendered below the description.
+   *
+   * @param {Dependency[]} items
+   */
+  function dependentsSection(items) {
+    return html`
+      <div class="dependents">
+        <div class="props-card__title">Dependents</div>
+        ${items.length === 0
+          ? html`<div class="muted">No dependents</div>`
+          : html`<ul>
+              ${items.map((dep) => {
+                const did = dep.id;
+                const href = issueHref(did);
+                return html`<li
+                  data-href=${href}
+                  @click=${() => navigateFn(href)}
+                >
+                  ${createTypeBadge(dep.issue_type || '')}
+                  <span class="mono muted">${did}</span>
+                  <span class="text-truncate">${dep.title || ''}</span>
+                  ${createStatusBadge(dep.status)}
+                  <button
+                    aria-label=${`Remove dependency ${did}`}
+                    @click=${makeDepRemoveClick(did, 'Dependents')}
+                  >
+                    ×
+                  </button>
+                </li>`;
+              })}
+            </ul>`}
+        <div class="dependents__add">
+          <input
+            type="text"
+            placeholder="Issue ID"
+            data-testid="add-dependent"
+          />
+          <button @click=${makeDepAddClick(items, 'Dependents')}>Add</button>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
    * @param {IssueDetail} issue
    */
   function detailTemplate(issue) {
@@ -1506,8 +1551,9 @@ export function createDetailView(
       <div class="panel__body" id="detail-root">
         <div class="detail-layout">
           <div class="detail-main">
-            ${title_zone} ${desc_block} ${design_block} ${notes_block}
-            ${accept_block} ${comments_block}
+            ${title_zone} ${desc_block}
+            ${dependentsSection(issue.dependents || [])} ${design_block}
+            ${notes_block} ${accept_block} ${comments_block}
           </div>
           <div class="detail-side">
             <div class="props-card">
@@ -1608,7 +1654,6 @@ export function createDetailView(
               ${dates_block}
               ${labels_block}
               ${depsSection('Dependencies', issue.dependencies || [])}
-              ${depsSection('Dependents', issue.dependents || [])}
             </div>
           </div>
         </div>

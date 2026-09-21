@@ -8,7 +8,7 @@ function mountDiv() {
 }
 
 describe('detail view design section', () => {
-  test('orders sections: Description → Design → Notes → Acceptance Criteria', async () => {
+  test('orders sections: Description → Dependents → Design → Notes → Acceptance Criteria', async () => {
     const mount = mountDiv();
     /** @type {any} */
     const issue = {
@@ -39,6 +39,9 @@ describe('detail view design section', () => {
       (el) => !el.classList.contains('detail-title')
     );
     const names = children.map((el) => {
+      if (el.classList.contains('dependents')) {
+        return 'dependents';
+      }
       if (el.classList.contains('design')) {
         return 'design';
       }
@@ -55,6 +58,7 @@ describe('detail view design section', () => {
     });
     expect(names).toEqual([
       'description',
+      'dependents',
       'design',
       'notes',
       'acceptance',
