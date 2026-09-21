@@ -270,4 +270,49 @@ describe('views/detail dependencies', () => {
     expect(add_btn.disabled).toBe(false);
     expect(input.value).toBe('UI-404');
   });
+
+  test('lists dependents in ascending ID order', async () => {
+    const mount = setupDom();
+    const issue = {
+      id: 'UI-80',
+      title: 'Epic',
+      dependents: [
+        { id: 'UI-10' },
+        { id: 'UI-b2' },
+        { id: 'UI-2' },
+        { id: 'UI-a9' },
+        { id: 'UI-9' }
+      ]
+    };
+    const stores = {
+      /** @param {string} id */
+      snapshotFor(id) {
+        return id === 'detail:UI-80' ? [issue] : [];
+      },
+      subscribe() {
+        return () => {};
+      }
+    };
+    const view = createDetailView(mount, vi.fn(), undefined, stores);
+    await view.load('UI-80');
+
+    const ids = Array.from(
+      mount.querySelectorAll('.detail-main .dependents li')
+    ).map((li) => li.getAttribute('data-href'));
+    expect(ids).toEqual([
+      '#/issues?issue=UI-2',
+      '#/issues?issue=UI-9',
+      '#/issues?issue=UI-10',
+      '#/issues?issue=UI-a9',
+      '#/issues?issue=UI-b2'
+    ]);
+    // The store's array is left untouched
+    expect(issue.dependents.map((d) => d.id)).toEqual([
+      'UI-10',
+      'UI-b2',
+      'UI-2',
+      'UI-a9',
+      'UI-9'
+    ]);
+  });
 });

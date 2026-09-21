@@ -66,6 +66,12 @@ export function formatDateValue(value) {
   }
 }
 
+// Same ID ordering as the Issues list's ID column: `UI-2` before `UI-10`.
+const id_collator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base'
+});
+
 /**
  * @typedef {Object} Dependency
  * @property {string} id
@@ -1159,25 +1165,28 @@ export function createDetailView(
         ${items.length === 0
           ? html`<div class="muted">No dependents</div>`
           : html`<ul>
-              ${items.map((dep) => {
-                const did = dep.id;
-                const href = issueHref(did);
-                return html`<li
-                  data-href=${href}
-                  @click=${() => navigateFn(href)}
-                >
-                  ${createTypeBadge(dep.issue_type || '')}
-                  <span class="mono muted">${did}</span>
-                  <span class="text-truncate">${dep.title || ''}</span>
-                  ${createStatusBadge(dep.status)}
-                  <button
-                    aria-label=${`Remove dependency ${did}`}
-                    @click=${makeDepRemoveClick(did, 'Dependents')}
+              ${items
+                .slice()
+                .sort((a, b) => id_collator.compare(a.id, b.id))
+                .map((dep) => {
+                  const did = dep.id;
+                  const href = issueHref(did);
+                  return html`<li
+                    data-href=${href}
+                    @click=${() => navigateFn(href)}
                   >
-                    ×
-                  </button>
-                </li>`;
-              })}
+                    ${createTypeBadge(dep.issue_type || '')}
+                    <span class="mono muted">${did}</span>
+                    <span class="text-truncate">${dep.title || ''}</span>
+                    ${createStatusBadge(dep.status)}
+                    <button
+                      aria-label=${`Remove dependency ${did}`}
+                      @click=${makeDepRemoveClick(did, 'Dependents')}
+                    >
+                      ×
+                    </button>
+                  </li>`;
+                })}
             </ul>`}
         <div class="dependents__add">
           <input
