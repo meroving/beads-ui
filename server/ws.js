@@ -1249,7 +1249,13 @@ export async function handleMessage(ws, data) {
       return;
     }
     const id = typeof view_id === 'string' && view_id.length > 0 ? view_id : a;
-    const shown = await runBdJson(['show', id, '--json'], bd_options);
+    // A dependent link only touches the other issue, so the viewed issue's
+    // `updated_at` stays put and its detail subscription never re-pushes.
+    // Reply with `dependents` so the client can show the new list.
+    const shown = await runBdJson(
+      ['show', id, '--json', '--include-dependents'],
+      bd_options
+    );
     if (shown.code !== 0) {
       ws.send(
         JSON.stringify(makeError(req, 'bd_error', shown.stderr || 'bd failed'))
@@ -1294,7 +1300,13 @@ export async function handleMessage(ws, data) {
       return;
     }
     const id = typeof view_id === 'string' && view_id.length > 0 ? view_id : a;
-    const shown = await runBdJson(['show', id, '--json'], bd_options);
+    // A dependent link only touches the other issue, so the viewed issue's
+    // `updated_at` stays put and its detail subscription never re-pushes.
+    // Reply with `dependents` so the client can show the new list.
+    const shown = await runBdJson(
+      ['show', id, '--json', '--include-dependents'],
+      bd_options
+    );
     if (shown.code !== 0) {
       ws.send(
         JSON.stringify(makeError(req, 'bd_error', shown.stderr || 'bd failed'))

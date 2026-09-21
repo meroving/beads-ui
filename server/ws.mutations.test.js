@@ -445,6 +445,33 @@ describe('ws mutation handlers', () => {
     expect(obj.payload.id).toBe('UI-7');
   });
 
+  test('dep-add and dep-remove reply with the viewed issue incl. dependents', async () => {
+    const mRun = /** @type {import('vitest').Mock} */ (runBd);
+    const mJson = /** @type {import('vitest').Mock} */ (runBdJson);
+    for (const type of ['dep-add', 'dep-remove']) {
+      mRun.mockResolvedValueOnce({ code: 0, stdout: '', stderr: '' });
+      mJson.mockResolvedValueOnce({
+        code: 0,
+        stdoutJson: [{ id: 'UI-1', dependents: [{ id: 'UI-7' }] }]
+      });
+      const ws = makeStubSocket();
+      const req = {
+        id: `r-${type}`,
+        type,
+        payload: { a: 'UI-7', b: 'UI-1', view_id: 'UI-1' }
+      };
+      await handleMessage(
+        /** @type {any} */ (ws),
+        Buffer.from(JSON.stringify(req))
+      );
+      const show = mJson.mock.calls[mJson.mock.calls.length - 1][0];
+      expect(show).toEqual(['show', 'UI-1', '--json', '--include-dependents']);
+      const obj = JSON.parse(ws.sent[ws.sent.length - 1]);
+      expect(obj.ok).toBe(true);
+      expect(obj.payload.dependents).toEqual([{ id: 'UI-7' }]);
+    }
+  });
+
   test('dep-remove bad payload yields bad_request', async () => {
     const ws = makeStubSocket();
     const req = { id: 'r6', type: 'dep-remove', payload: { a: '' } };

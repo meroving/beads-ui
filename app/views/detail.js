@@ -340,8 +340,9 @@ export function createDetailView(
    * Adopt the issue a mutation replied with. The reply can land after the
    * subscription has already pushed the same revision, and after the dialog
    * moved to another issue, so anything that is not the open issue is
-   * ignored. The reply comes from a plain `bd show`, which never carries
-   * `dependents` or the separately loaded `comments`; keep those.
+   * ignored. Most replies come from a plain `bd show`, which carries neither
+   * `dependents` (only `dep-add`/`dep-remove` ask for them) nor the
+   * separately loaded `comments`; keep those when absent.
    *
    * @param {unknown} updated
    * @returns {boolean} Whether `current` was replaced.
@@ -1764,11 +1765,19 @@ export function createDetailView(
             doRender();
           }
         }
+        if (input) {
+          input.value = '';
+        }
       } catch (err) {
         log('dep-add failed %o', err);
         showToast('Failed to add dependency', 'error');
       } finally {
         pending = false;
+        // The template never binds `disabled`, so re-renders keep it set.
+        btn.disabled = false;
+        if (input) {
+          input.disabled = false;
+        }
       }
     };
   }

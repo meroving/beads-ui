@@ -209,21 +209,65 @@ describe('views/detail dependencies', () => {
         return () => {};
       }
     };
-    const send = vi.fn(async () => issue);
+    // The reply carries the new dependent; the subscription never re-pushes
+    // because adding a dependent does not touch the viewed issue.
+    const send = vi.fn(async () => ({
+      ...issue,
+      dependents: [{ id: 'UI-61', title: 'Child' }]
+    }));
     const view = createDetailView(mount, send, undefined, stores);
     await view.load('UI-60');
 
     const input = /** @type {HTMLInputElement} */ (
       mount.querySelector('.detail-main [data-testid="add-dependent"]')
     );
+    const add_btn = /** @type {HTMLButtonElement} */ (input.nextElementSibling);
     input.value = 'UI-61';
-    input.nextElementSibling?.dispatchEvent(new window.Event('click'));
-    await Promise.resolve();
+    add_btn.dispatchEvent(new window.Event('click'));
+    expect(input.disabled).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(send).toHaveBeenCalledWith('dep-add', {
       a: 'UI-61',
       b: 'UI-60',
       view_id: 'UI-60'
     });
+    const rows = mount.querySelectorAll('.detail-main .dependents li');
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain('UI-61');
+    expect(input.disabled).toBe(false);
+    expect(add_btn.disabled).toBe(false);
+    expect(input.value).toBe('');
+  });
+
+  test('re-enables the add control and keeps the input after a failure', async () => {
+    const mount = setupDom();
+    const issue = { id: 'UI-70', title: 'Epic', dependents: [] };
+    const stores = {
+      /** @param {string} id */
+      snapshotFor(id) {
+        return id === 'detail:UI-70' ? [issue] : [];
+      },
+      subscribe() {
+        return () => {};
+      }
+    };
+    const send = vi.fn(async () => {
+      throw new Error('bd failed');
+    });
+    const view = createDetailView(mount, send, undefined, stores);
+    await view.load('UI-70');
+
+    const input = /** @type {HTMLInputElement} */ (
+      mount.querySelector('.detail-main [data-testid="add-dependent"]')
+    );
+    const add_btn = /** @type {HTMLButtonElement} */ (input.nextElementSibling);
+    input.value = 'UI-404';
+    add_btn.dispatchEvent(new window.Event('click'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(input.disabled).toBe(false);
+    expect(add_btn.disabled).toBe(false);
+    expect(input.value).toBe('UI-404');
   });
 });
