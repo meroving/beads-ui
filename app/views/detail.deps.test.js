@@ -116,7 +116,7 @@ describe('views/detail dependencies', () => {
     expect(calls.includes('dep-add')).toBe(false);
   });
 
-  test('renders Dependents in the main column below the description', async () => {
+  test('renders Dependents in the main column just above the comments', async () => {
     const mount = setupDom();
     const issue = {
       id: 'UI-40',
@@ -157,16 +157,16 @@ describe('views/detail dependencies', () => {
     const children = Array.from(
       /** @type {HTMLElement} */ (mount.querySelector('.detail-main')).children
     );
-    const desc_idx = children.findIndex(
-      (el) => el.getAttribute('aria-label') === 'Edit description'
+    const accept_idx = children.findIndex((el) =>
+      el.classList.contains('acceptance')
     );
     const deps_idx = children.indexOf(/** @type {Element} */ (section));
     const comments_idx = children.findIndex((el) =>
       el.classList.contains('comments')
     );
-    expect(desc_idx).toBeGreaterThanOrEqual(0);
-    expect(deps_idx).toBe(desc_idx + 1);
-    expect(deps_idx).toBeLessThan(comments_idx);
+    expect(accept_idx).toBeGreaterThanOrEqual(0);
+    expect(deps_idx).toBe(accept_idx + 1);
+    expect(comments_idx).toBe(deps_idx + 1);
 
     const row = section?.querySelector('li');
     expect(row?.textContent).toContain('UI-41');

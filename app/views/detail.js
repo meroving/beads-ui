@@ -1147,7 +1147,8 @@ export function createDetailView(
   }
 
   /**
-   * Dependents list for the main column, rendered below the description.
+   * Dependents list for the main column, rendered after the issue text
+   * sections and just above the comments.
    *
    * @param {Dependency[]} items
    */
@@ -1552,9 +1553,9 @@ export function createDetailView(
       <div class="panel__body" id="detail-root">
         <div class="detail-layout">
           <div class="detail-main">
-            ${title_zone} ${desc_block}
-            ${dependentsSection(issue.dependents || [])} ${design_block}
-            ${notes_block} ${accept_block} ${comments_block}
+            ${title_zone} ${desc_block} ${design_block} ${notes_block}
+            ${accept_block} ${dependentsSection(issue.dependents || [])}
+            ${comments_block}
           </div>
           <div class="detail-side">
             <div class="props-card">

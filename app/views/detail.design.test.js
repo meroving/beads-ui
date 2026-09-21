@@ -8,7 +8,7 @@ function mountDiv() {
 }
 
 describe('detail view design section', () => {
-  test('orders sections: Description → Dependents → Design → Notes → Acceptance Criteria', async () => {
+  test('orders sections: Description → Design → Notes → Acceptance Criteria → Dependents', async () => {
     const mount = mountDiv();
     /** @type {any} */
     const issue = {
@@ -58,10 +58,10 @@ describe('detail view design section', () => {
     });
     expect(names).toEqual([
       'description',
-      'dependents',
       'design',
       'notes',
       'acceptance',
+      'dependents',
       'comments'
     ]);
     // Heading text for acceptance should be updated
