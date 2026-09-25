@@ -62,6 +62,7 @@
   },
   "files": [
     "app/index.html",
+    "app/favicon.svg",
     "app/styles.css",
     "app/main.bundle.js",
     "app/main.bundle.js.map",
