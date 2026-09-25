@@ -8,7 +8,7 @@ function mountDiv() {
 }
 
 describe('detail view design section', () => {
-  test('orders sections: Description → Design → Notes → Acceptance Criteria → Dependents', async () => {
+  test('orders sections: Description → Design → Notes → Acceptance Criteria → Dependencies → Dependents', async () => {
     const mount = mountDiv();
     /** @type {any} */
     const issue = {
@@ -39,6 +39,9 @@ describe('detail view design section', () => {
       (el) => !el.classList.contains('detail-title')
     );
     const names = children.map((el) => {
+      if (el.classList.contains('dependencies')) {
+        return 'dependencies';
+      }
       if (el.classList.contains('dependents')) {
         return 'dependents';
       }
@@ -61,6 +64,7 @@ describe('detail view design section', () => {
       'design',
       'notes',
       'acceptance',
+      'dependencies',
       'dependents',
       'comments'
     ]);

@@ -116,13 +116,15 @@ describe('views/detail dependencies', () => {
     expect(calls.includes('dep-add')).toBe(false);
   });
 
-  test('renders Dependents in the main column just above the comments', async () => {
+  test('renders Dependencies then Dependents in the main column above the comments', async () => {
     const mount = setupDom();
     const issue = {
       id: 'UI-40',
       title: 'Parent',
       description: 'Body text',
-      dependencies: [{ id: 'UI-1', title: 'Blocker' }],
+      dependencies: [
+        { id: 'UI-1', title: 'Blocker', status: 'closed', issue_type: 'bug' }
+      ],
       dependents: [
         {
           id: 'UI-41',
@@ -144,15 +146,13 @@ describe('views/detail dependencies', () => {
     const view = createDetailView(mount, vi.fn(), undefined, stores);
     await view.load('UI-40');
 
+    const deps = mount.querySelector('.detail-main .dependencies');
     const section = mount.querySelector('.detail-main .dependents');
+    expect(deps).toBeTruthy();
     expect(section).toBeTruthy();
-    expect(mount.querySelector('.detail-side .dependents')).toBeNull();
-    expect(
-      mount.querySelector('.detail-side [data-testid="add-dependent"]')
-    ).toBeNull();
-    expect(
-      mount.querySelector('.detail-side [data-testid="add-dependency"]')
-    ).toBeTruthy();
+    // The sidebar keeps no dependency lists or add controls
+    expect(mount.querySelector('.detail-side .deps-section')).toBeNull();
+    expect(mount.querySelector('.detail-side [data-testid]')).toBeNull();
 
     const children = Array.from(
       /** @type {HTMLElement} */ (mount.querySelector('.detail-main')).children
@@ -160,13 +160,21 @@ describe('views/detail dependencies', () => {
     const accept_idx = children.findIndex((el) =>
       el.classList.contains('acceptance')
     );
-    const deps_idx = children.indexOf(/** @type {Element} */ (section));
+    const deps_idx = children.indexOf(/** @type {Element} */ (deps));
+    const dependents_idx = children.indexOf(/** @type {Element} */ (section));
     const comments_idx = children.findIndex((el) =>
       el.classList.contains('comments')
     );
     expect(accept_idx).toBeGreaterThanOrEqual(0);
     expect(deps_idx).toBe(accept_idx + 1);
-    expect(comments_idx).toBe(deps_idx + 1);
+    expect(dependents_idx).toBe(deps_idx + 1);
+    expect(comments_idx).toBe(dependents_idx + 1);
+
+    const dep_row = deps?.querySelector('li');
+    expect(dep_row?.textContent).toContain('UI-1');
+    expect(dep_row?.textContent).toContain('Blocker');
+    expect(dep_row?.querySelector('.status-badge.is-closed')).toBeTruthy();
+    expect(deps?.querySelector('[data-testid="add-dependency"]')).toBeTruthy();
 
     const row = section?.querySelector('li');
     expect(row?.textContent).toContain('UI-41');
@@ -177,9 +185,14 @@ describe('views/detail dependencies', () => {
     ).toBeTruthy();
   });
 
-  test('shows an empty state when there are no dependents', async () => {
+  test('shows empty states when there are no dependencies or dependents', async () => {
     const mount = setupDom();
-    const issue = { id: 'UI-50', title: 'Lonely', dependents: [] };
+    const issue = {
+      id: 'UI-50',
+      title: 'Lonely',
+      dependencies: [],
+      dependents: []
+    };
     const stores = {
       /** @param {string} id */
       snapshotFor(id) {
@@ -192,6 +205,9 @@ describe('views/detail dependencies', () => {
     const view = createDetailView(mount, vi.fn(), undefined, stores);
     await view.load('UI-50');
 
+    const deps = mount.querySelector('.detail-main .dependencies');
+    expect(deps?.querySelector('ul')).toBeNull();
+    expect(deps?.textContent).toContain('No dependencies');
     const section = mount.querySelector('.detail-main .dependents');
     expect(section?.querySelector('ul')).toBeNull();
     expect(section?.textContent).toContain('No dependents');
@@ -314,5 +330,72 @@ describe('views/detail dependencies', () => {
       'UI-a9',
       'UI-9'
     ]);
+  });
+
+  test('lists dependencies in ascending ID order', async () => {
+    const mount = setupDom();
+    const issue = {
+      id: 'UI-90',
+      title: 'Task',
+      dependencies: [{ id: 'UI-12' }, { id: 'UI-3' }, { id: 'UI-7' }]
+    };
+    const stores = {
+      /** @param {string} id */
+      snapshotFor(id) {
+        return id === 'detail:UI-90' ? [issue] : [];
+      },
+      subscribe() {
+        return () => {};
+      }
+    };
+    const view = createDetailView(mount, vi.fn(), undefined, stores);
+    await view.load('UI-90');
+
+    const ids = Array.from(
+      mount.querySelectorAll('.detail-main .dependencies li')
+    ).map((li) => li.getAttribute('data-href'));
+    expect(ids).toEqual([
+      '#/issues?issue=UI-3',
+      '#/issues?issue=UI-7',
+      '#/issues?issue=UI-12'
+    ]);
+  });
+
+  test('adds a dependency from the main column', async () => {
+    const mount = setupDom();
+    const issue = { id: 'UI-95', title: 'Task', dependencies: [] };
+    const stores = {
+      /** @param {string} id */
+      snapshotFor(id) {
+        return id === 'detail:UI-95' ? [issue] : [];
+      },
+      subscribe() {
+        return () => {};
+      }
+    };
+    const send = vi.fn(async () => ({
+      ...issue,
+      dependencies: [{ id: 'UI-96', title: 'Blocker' }]
+    }));
+    const view = createDetailView(mount, send, undefined, stores);
+    await view.load('UI-95');
+
+    const input = /** @type {HTMLInputElement} */ (
+      mount.querySelector('.detail-main [data-testid="add-dependency"]')
+    );
+    const add_btn = /** @type {HTMLButtonElement} */ (input.nextElementSibling);
+    input.value = 'UI-96';
+    add_btn.dispatchEvent(new window.Event('click'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(send).toHaveBeenCalledWith('dep-add', {
+      a: 'UI-95',
+      b: 'UI-96',
+      view_id: 'UI-95'
+    });
+    const rows = mount.querySelectorAll('.detail-main .dependencies li');
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain('UI-96');
+    expect(input.value).toBe('');
   });
 });

@@ -1112,58 +1112,19 @@ export function createDetailView(
   };
 
   /**
+   * Dependencies or Dependents list for the main column, rendered after the
+   * issue text sections and just above the comments.
+   *
    * @param {'Dependencies'|'Dependents'} title
    * @param {Dependency[]} items
    */
   function depsSection(title, items) {
-    const test_id =
-      title === 'Dependencies' ? 'add-dependency' : 'add-dependent';
+    const kind = title === 'Dependencies' ? 'dependencies' : 'dependents';
     return html`
-      <div class="props-card">
-        <div>
-          <div class="props-card__title">${title}</div>
-        </div>
-        <ul>
-          ${!items || items.length === 0
-            ? null
-            : items.map((dep) => {
-                const did = dep.id;
-                const href = issueHref(did);
-                return html`<li
-                  data-href=${href}
-                  @click=${() => navigateFn(href)}
-                >
-                  ${createTypeBadge(dep.issue_type || '')}
-                  <span class="text-truncate">${dep.title || ''}</span>
-                  <button
-                    aria-label=${`Remove dependency ${did}`}
-                    @click=${makeDepRemoveClick(did, title)}
-                  >
-                    ×
-                  </button>
-                </li>`;
-              })}
-        </ul>
-        <div class="props-card__footer">
-          <input type="text" placeholder="Issue ID" data-testid=${test_id} />
-          <button @click=${makeDepAddClick(items, title)}>Add</button>
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * Dependents list for the main column, rendered after the issue text
-   * sections and just above the comments.
-   *
-   * @param {Dependency[]} items
-   */
-  function dependentsSection(items) {
-    return html`
-      <div class="dependents">
-        <div class="props-card__title">Dependents</div>
+      <div class=${`deps-section ${kind}`}>
+        <div class="props-card__title">${title}</div>
         ${items.length === 0
-          ? html`<div class="muted">No dependents</div>`
+          ? html`<div class="muted">No ${kind}</div>`
           : html`<ul>
               ${items
                 .slice()
@@ -1181,20 +1142,22 @@ export function createDetailView(
                     ${createStatusBadge(dep.status)}
                     <button
                       aria-label=${`Remove dependency ${did}`}
-                      @click=${makeDepRemoveClick(did, 'Dependents')}
+                      @click=${makeDepRemoveClick(did, title)}
                     >
                       ×
                     </button>
                   </li>`;
                 })}
             </ul>`}
-        <div class="dependents__add">
+        <div class="deps-section__add">
           <input
             type="text"
             placeholder="Issue ID"
-            data-testid="add-dependent"
+            data-testid=${kind === 'dependencies'
+              ? 'add-dependency'
+              : 'add-dependent'}
           />
-          <button @click=${makeDepAddClick(items, 'Dependents')}>Add</button>
+          <button @click=${makeDepAddClick(items, title)}>Add</button>
         </div>
       </div>
     `;
@@ -1563,7 +1526,9 @@ export function createDetailView(
         <div class="detail-layout">
           <div class="detail-main">
             ${title_zone} ${desc_block} ${design_block} ${notes_block}
-            ${accept_block} ${dependentsSection(issue.dependents || [])}
+            ${accept_block}
+            ${depsSection('Dependencies', issue.dependencies || [])}
+            ${depsSection('Dependents', issue.dependents || [])}
             ${comments_block}
           </div>
           <div class="detail-side">
@@ -1664,7 +1629,6 @@ export function createDetailView(
               </div>
               ${dates_block}
               ${labels_block}
-              ${depsSection('Dependencies', issue.dependencies || [])}
             </div>
           </div>
         </div>

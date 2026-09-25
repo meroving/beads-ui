@@ -75,7 +75,11 @@ describe('detail deps UI (UI-47)', () => {
     document.body.innerHTML =
       '<section class="panel"><div id="mount"></div></section>';
     const mount = /** @type {HTMLElement} */ (document.getElementById('mount'));
-    const current2 = { id: 'UI-300', dependencies: [], dependents: [] };
+    const current2 = {
+      id: 'UI-300',
+      dependencies: [{ id: 'UI-301', title: 'Blocker' }],
+      dependents: []
+    };
     const stores3 = {
       /** @param {string} id */
       snapshotFor(id) {
@@ -93,8 +97,9 @@ describe('detail deps UI (UI-47)', () => {
       mount.querySelector('[data-testid="add-dependency"]')
     );
     expect(input).toBeTruthy();
-    const prev = input.parentElement?.previousElementSibling;
-    // Expect the add controls to follow the list (ul)
-    expect(prev && prev.tagName).toBe('UL');
+    const row = input.parentElement;
+    // Expect the add controls to follow the list (ul) and close the section
+    expect(row?.previousElementSibling?.tagName).toBe('UL');
+    expect(row?.parentElement?.lastElementChild).toBe(row);
   });
 });
