@@ -387,7 +387,7 @@ a {
   position: sticky;
   top: 0;
   /* Filter menus open from here over the rows; keep them above positioned
-     cells (e.g. inline-editable titles) that come later in the DOM. */
+     cells (e.g. inline-editable assignees) that come later in the DOM. */
   z-index: 1;
   background: inherit;
   display: flex;
@@ -1360,6 +1360,9 @@ input.inline-edit:focus {
       width: 100%;
     }
   }
+  td.title-col .text-truncate {
+    display: block;
+  }
   th {
     font-size: 12px;
     color: var(--muted);
@@ -1418,6 +1421,11 @@ input.inline-edit:focus {
     opacity: 1;
     color: var(--link);
   }
+}
+/* Clicking a row opens the issue */
+.issue-row,
+.epic-row {
+  cursor: pointer;
 }
 .epic-row:hover {
   background: color-mix(in srgb, var(--control-bg) 55%, transparent);

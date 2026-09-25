@@ -428,7 +428,7 @@ describe('views/epics', () => {
     expect(d[0]?.id).toBe('UI-41');
   });
 
-  test('clicking the editable title does not navigate and enters edit mode', async () => {
+  test('clicking the title opens the issue instead of editing it', async () => {
     document.body.innerHTML = '<div id="m"></div>';
     const mount = /** @type {HTMLElement} */ (document.getElementById('m'));
     const data = {
@@ -515,16 +515,15 @@ describe('views/epics', () => {
     });
     await view.load();
     const titleSpan = /** @type {HTMLElement|null} */ (
-      mount.querySelector('tr.epic-row td:nth-child(3) .editable')
+      mount.querySelector('tr.epic-row td:nth-child(3) span')
     );
-    expect(titleSpan).not.toBeNull();
+    expect(titleSpan?.textContent).toBe('Clickable Title');
     titleSpan?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    // Should not have navigated
-    expect(navCalls.length).toBe(0);
-    // Should render an input for title now
+    expect(navCalls).toEqual(['UI-31']);
+    // No inline title editor
     const input = /** @type {HTMLInputElement|null} */ (
-      mount.querySelector('tr.epic-row td:nth-child(3) input[type="text"]')
+      mount.querySelector('tr.epic-row td:nth-child(3) input')
     );
-    expect(input).not.toBeNull();
+    expect(input).toBeNull();
   });
 });

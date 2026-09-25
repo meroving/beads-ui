@@ -86,26 +86,26 @@ describe('views/list navigation', () => {
     );
     await view.load();
 
-    // Focus Title cell (3rd column) in first row
-    const first_title = /** @type {HTMLElement} */ (
+    // Focus Assignee cell (6th column) in first row
+    const first_assignee = /** @type {HTMLElement} */ (
       mount.querySelector(
-        'tbody tr.issue-row:nth-child(1) td:nth-child(3) .editable'
+        'tbody tr.issue-row:nth-child(1) td:nth-child(6) .editable'
       )
     );
-    first_title.focus();
-    expect(document.activeElement).toBe(first_title);
+    first_assignee.focus();
+    expect(document.activeElement).toBe(first_assignee);
 
-    // Press ArrowDown → expect Title cell in next row to gain focus
-    first_title.dispatchEvent(
+    // Press ArrowDown → expect Assignee cell in next row to gain focus
+    first_assignee.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
     );
 
-    const second_title = /** @type {HTMLElement} */ (
+    const second_assignee = /** @type {HTMLElement} */ (
       mount.querySelector(
-        'tbody tr.issue-row:nth-child(2) td:nth-child(3) .editable'
+        'tbody tr.issue-row:nth-child(2) td:nth-child(6) .editable'
       )
     );
-    expect(document.activeElement).toBe(second_title);
+    expect(document.activeElement).toBe(second_assignee);
   });
 
   test('ArrowUp moves focus to same column in previous row', async () => {
@@ -151,22 +151,22 @@ describe('views/list navigation', () => {
     );
     await view.load();
 
-    const third_title = /** @type {HTMLElement} */ (
+    const third_assignee = /** @type {HTMLElement} */ (
       mount.querySelector(
-        'tbody tr.issue-row:nth-child(3) td:nth-child(3) .editable'
+        'tbody tr.issue-row:nth-child(3) td:nth-child(6) .editable'
       )
     );
-    third_title.focus();
-    third_title.dispatchEvent(
+    third_assignee.focus();
+    third_assignee.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })
     );
 
-    const second_title = /** @type {HTMLElement} */ (
+    const second_assignee = /** @type {HTMLElement} */ (
       mount.querySelector(
-        'tbody tr.issue-row:nth-child(2) td:nth-child(3) .editable'
+        'tbody tr.issue-row:nth-child(2) td:nth-child(6) .editable'
       )
     );
-    expect(document.activeElement).toBe(second_title);
+    expect(document.activeElement).toBe(second_assignee);
   });
 
   test('does not intercept inside select controls', async () => {

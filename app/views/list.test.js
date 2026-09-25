@@ -161,6 +161,46 @@ describe('views/list', () => {
     expect(window.location.hash).toBe('#/issues?issue=UI-1');
   });
 
+  test('clicking the title opens the issue instead of editing it', async () => {
+    document.body.innerHTML = '<aside id="mount" class="panel"></aside>';
+    const mount = /** @type {HTMLElement} */ (document.getElementById('mount'));
+    const issueStores = createTestIssueStores();
+    issueStores.getStore('tab:issues').applyPush({
+      type: 'snapshot',
+      id: 'tab:issues',
+      revision: 1,
+      issues: [
+        {
+          id: 'UI-7',
+          title: 'Seven',
+          status: 'open',
+          priority: 2,
+          issue_type: 'task'
+        }
+      ]
+    });
+    /** @type {string[]} */
+    const navCalls = [];
+    const view = createListView(
+      mount,
+      async () => [],
+      (hash) => navCalls.push(hash),
+      undefined,
+      undefined,
+      issueStores
+    );
+    await view.load();
+
+    const title = /** @type {HTMLElement} */ (
+      mount.querySelector('tr.issue-row td.title-col span')
+    );
+    expect(title.textContent).toBe('Seven');
+    title.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(navCalls).toEqual(['#/issues?issue=UI-7']);
+    expect(mount.querySelector('tr.issue-row td.title-col input')).toBeNull();
+  });
+
   test('filters by status and search', async () => {
     document.body.innerHTML = '<aside id="mount" class="panel"></aside>';
     const mount = /** @type {HTMLElement} */ (document.getElementById('mount'));

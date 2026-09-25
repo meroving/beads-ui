@@ -586,9 +586,6 @@ export function createListView(
     try {
       log('updateInline %s %o', id, Object.keys(patch));
       // Dispatch specific mutations based on provided keys
-      if (typeof patch.title === 'string') {
-        await sendFn('edit-text', { id, field: 'title', value: patch.title });
-      }
       if (typeof patch.assignee === 'string') {
         await sendFn('update-assignee', { id, assignee: patch.assignee });
       }

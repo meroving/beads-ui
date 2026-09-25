@@ -18,12 +18,13 @@ import {
 
 /**
  * Create a reusable issue row renderer used by list and epics views.
- * Handles inline editing for title/assignee and selects for status/priority.
+ * The title is read-only (clicking the row opens the issue); assignee is
+ * edited inline and type/status/priority through selects.
  * With `show_labels`, a read-only Labels cell follows the Title cell.
  *
  * @param {{
  *   navigate: (id: string) => void,
- *   onUpdate: (id: string, patch: { title?: string, assignee?: string, status?: SettableStatus, priority?: number, issue_type?: string }) => Promise<void>,
+ *   onUpdate: (id: string, patch: { assignee?: string, status?: SettableStatus, priority?: number, issue_type?: string }) => Promise<void>,
  *   requestRender: () => void,
  *   getSelectedId?: () => string | null,
  *   row_class?: string,
@@ -44,7 +45,7 @@ export function createIssueRowRenderer(options) {
 
   /**
    * @param {string} id
-   * @param {'title'|'assignee'} key
+   * @param {'assignee'} key
    * @param {string} value
    * @param {string} [placeholder]
    */
@@ -189,7 +190,9 @@ export function createIssueRowRenderer(options) {
           )}
         </select>
       </td>
-      <td role="gridcell">${editableText(it.id, 'title', it.title || '')}</td>
+      <td role="gridcell" class="title-col">
+        <span class="text-truncate">${it.title || ''}</span>
+      </td>
       ${show_labels ? labelsCell(it) : ''}
       <td role="gridcell">
         <select
